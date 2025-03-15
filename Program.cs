@@ -1,8 +1,29 @@
+using ResumeSpy.Interfaces;
+using ResumeSpy.Services;
+using ResumeSpy.Configuration;
+using Microsoft.Extensions.Options;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddHttpClient();
+
+// Load translator settings from configuration
+builder.Services.Configure<TranslatorSettings>(builder.Configuration.GetSection("TranslatorSettings"));
+
+// Register the factory
+builder.Services.AddSingleton<TranslatorFactory>();
+
+// Register the translator service using the factory
+builder.Services.AddScoped<ITranslator>(provider =>
+{
+    var factory = provider.GetRequiredService<TranslatorFactory>();
+    return factory.CreateTranslator();
+});
+
+builder.Services.AddScoped<TranslationService>();
 
 // Add CORS services
 builder.Services.AddCors(options =>
