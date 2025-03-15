@@ -7,7 +7,7 @@ using System.Linq;
 namespace ResumeSpy.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("api/[controller]")]
     public class ResumeDetailController : ControllerBase
     {
         private static List<ResumeDetailModel> ResumeDetailModels = new List<ResumeDetailModel>
