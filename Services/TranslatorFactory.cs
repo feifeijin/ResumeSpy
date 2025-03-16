@@ -23,9 +23,21 @@ namespace ResumeSpy.Services
 
             return _translatorSettings.TranslatorType switch
             {
-                TranslatorType.Microsoft => new MicrosoftTranslator(httpClient, _translatorSettings.Microsoft.SubscriptionKey, _translatorSettings.Microsoft.Endpoint),
-                TranslatorType.DeepL => new DeepLTranslator(httpClient, _translatorSettings.DeepL.AuthKey),
-                TranslatorType.Libre => new LibreTranslator(httpClient, _translatorSettings.Libre.ApiKey),
+                TranslatorType.Microsoft => new MicrosoftTranslator(
+                    httpClient, 
+                    _translatorSettings.Microsoft.SubscriptionKey, 
+                    _translatorSettings.Microsoft.Endpoint),
+                    
+                TranslatorType.DeepL => new DeepLTranslator(
+                    httpClient, 
+                    _translatorSettings.DeepL.AuthKey, 
+                    _translatorSettings.DeepL.Endpoint),
+                    
+                TranslatorType.Libre => new LibreTranslator(
+                    httpClient, 
+                    _translatorSettings.Libre.ApiKey, 
+                    _translatorSettings.Libre.Endpoint),
+                    
                 _ => throw new Exception("Invalid translator type specified in configuration.")
             };
         }

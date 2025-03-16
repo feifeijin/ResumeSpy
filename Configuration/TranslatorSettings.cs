@@ -17,10 +17,16 @@ namespace ResumeSpy.Configuration
     public class DeepLTranslatorSettings
     {
         public string AuthKey { get; set; }
+
+        public string Endpoint { get; set; }
+
     }
 
     public class LibreTranslatorSettings
     {
         public string ApiKey { get; set; }
+
+        public string Endpoint { get; set; }
+
     }
 }

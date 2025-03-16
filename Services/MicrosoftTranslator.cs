@@ -1,32 +1,52 @@
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace ResumeSpy.Services
 {
     public class MicrosoftTranslator : BaseTranslator
     {
-        private readonly string _endpoint;
-
         public MicrosoftTranslator(HttpClient httpClient, string apiKey, string endpoint)
-            : base(httpClient, apiKey)
+            : base(httpClient, apiKey, endpoint)
         {
-            _endpoint = endpoint;
         }
 
-        public override async Task<string> TranslateAsync(string text, string targetLanguage)
+        protected override void PrepareHttpClient()
         {
-            var route = $"/translate?api-version=3.0&to={targetLanguage}";
-            var requestBody = new object[] { new { Text = text } };
-            var requestContent = new StringContent(JsonSerializer.Serialize(requestBody));
-            requestContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-
+            // Clear headers to avoid duplicate headers if the client is reused
+            if (_httpClient.DefaultRequestHeaders.Contains("Ocp-Apim-Subscription-Key"))
+            {
+                _httpClient.DefaultRequestHeaders.Remove("Ocp-Apim-Subscription-Key");
+            }
             _httpClient.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", _apiKey);
-            var response = await _httpClient.PostAsync(_endpoint + route, requestContent);
-            var responseBody = await response.Content.ReadAsStringAsync();
-            var result = JsonSerializer.Deserialize<List<TranslationResult>>(responseBody);
-            return result?.FirstOrDefault()?.Translations?.FirstOrDefault()?.Text ?? text;
+        }
+
+        protected override string BuildRequestUrl(string targetLanguage)
+        {
+            return $"{_endpoint}/translate?api-version=3.0&to={targetLanguage}";
+        }
+
+        protected override HttpContent CreateRequestContent(string text, string targetLanguage)
+        {
+            var requestBody = new object[] { new { Text = text } };
+            var content = new StringContent(JsonSerializer.Serialize(requestBody));
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            return content;
+        }
+
+        protected override string ExtractTranslatedText(string responseBody, string originalText)
+        {
+            try
+            {
+                var result = JsonSerializer.Deserialize<List<TranslationResult>>(responseBody);
+                return result?.FirstOrDefault()?.Translations?.FirstOrDefault()?.Text ?? originalText;
+            }
+            catch (JsonException)
+            {
+                return originalText;
+            }
         }
 
         private class TranslationResult

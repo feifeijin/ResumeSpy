@@ -1,32 +1,53 @@
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text.Json;
-using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace ResumeSpy.Services
 {
     public class LibreTranslator : BaseTranslator
     {
-        public LibreTranslator(HttpClient httpClient, string apiKey)
-            : base(httpClient, apiKey)
+        public LibreTranslator(HttpClient httpClient, string apiKey, string endpoint)
+            : base(httpClient, apiKey, endpoint)
         {
         }
 
-        public override async Task<string> TranslateAsync(string text, string targetLanguage)
+        protected override string BuildRequestUrl(string targetLanguage)
         {
-            var requestContent = new FormUrlEncodedContent(new[]
+            // LibreTranslate uses the endpoint directly
+            return _endpoint;
+        }
+
+        protected override HttpContent CreateRequestContent(string text, string targetLanguage)
+        {
+            var formContent = new List<KeyValuePair<string, string>>
             {
                 new KeyValuePair<string, string>("q", text),
                 new KeyValuePair<string, string>("target", targetLanguage)
-            });
-
-            var response = await _httpClient.PostAsync("https://libretranslate.com/translate", requestContent);
-            var responseBody = await response.Content.ReadAsStringAsync();
-            var result = JsonSerializer.Deserialize<LibreTranslateResult>(responseBody);
-            return result?.TranslatedText ?? text;
+            };
+            
+            // Add API key if provided
+            if (!string.IsNullOrEmpty(_apiKey))
+            {
+                formContent.Add(new KeyValuePair<string, string>("api_key", _apiKey));
+            }
+            
+            return new FormUrlEncodedContent(formContent);
         }
 
-        private class LibreTranslateResult
+        protected override string ExtractTranslatedText(string responseBody, string originalText)
+        {
+            try
+            {
+                var result = JsonSerializer.Deserialize<LibreTranslateResponse>(responseBody);
+                return result?.TranslatedText ?? originalText;
+            }
+            catch (JsonException)
+            {
+                return originalText;
+            }
+        }
+
+        private class LibreTranslateResponse
         {
             public string TranslatedText { get; set; }
         }
