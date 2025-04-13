@@ -111,7 +111,8 @@ namespace ResumeSpy.Controllers
                 return NotFound();
             }
 
-            string translatedContent = await _translationService.TranslateAsync(existingDetail.Content, request.Language);
+            string translatedContent = await _translationService.TranslateAsync(existingDetail.Content,existingDetail.Language, request.Language);
+            // string translatedContent = await _translationService.TranslateAsync(existingDetail.Content,"EN", "JA");
 
             var newDetail = new ResumeDetailModel
             {

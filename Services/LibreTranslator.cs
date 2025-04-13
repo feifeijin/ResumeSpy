@@ -11,40 +11,14 @@ namespace ResumeSpy.Services
         {
         }
 
-        protected override string BuildRequestUrl(string targetLanguage)
+        public override Task<string> DetectLanguageAsync(string text)
         {
-            // LibreTranslate uses the endpoint directly
-            return _endpoint;
+            throw new NotImplementedException();
         }
 
-        protected override HttpContent CreateRequestContent(string text, string targetLanguage)
+        public override Task<string> TranslateAsync(string text, string sourceLanguage, string targetLanguage)
         {
-            var formContent = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("q", text),
-                new KeyValuePair<string, string>("target", targetLanguage)
-            };
-            
-            // Add API key if provided
-            if (!string.IsNullOrEmpty(_apiKey))
-            {
-                formContent.Add(new KeyValuePair<string, string>("api_key", _apiKey));
-            }
-            
-            return new FormUrlEncodedContent(formContent);
-        }
-
-        protected override string ExtractTranslatedText(string responseBody, string originalText)
-        {
-            try
-            {
-                var result = JsonSerializer.Deserialize<LibreTranslateResponse>(responseBody);
-                return result?.TranslatedText ?? originalText;
-            }
-            catch (JsonException)
-            {
-                return originalText;
-            }
+            throw new NotImplementedException();
         }
 
         private class LibreTranslateResponse

@@ -1,6 +1,6 @@
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Text.Json;
+using Newtonsoft.Json;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
@@ -13,43 +13,52 @@ namespace ResumeSpy.Services
         {
         }
 
-        protected override string BuildRequestUrl(string targetLanguage)
+        public override async Task<string> TranslateAsync(string text, string sourceLanguage, string targetLanguage)
         {
-            // DeepL uses the endpoint directly
-            return _endpoint;
-        }
-
-        protected override HttpContent CreateRequestContent(string text, string targetLanguage)
-        {
-            return new FormUrlEncodedContent(new[]
+            var client = new HttpClient();
+            var request = new HttpRequestMessage(HttpMethod.Post, _endpoint);
+            request.Headers.Add("Accept", "application/json");
+            request.Headers.Add("Authorization", $"DeepL-Auth-Key {_apiKey}");
+            var collection = new List<KeyValuePair<string, string>>
             {
-                new KeyValuePair<string, string>("auth_key", _apiKey),
-                new KeyValuePair<string, string>("text", text),
-                new KeyValuePair<string, string>("target_lang", targetLanguage)
-            });
-        }
+                new("text", text),
+                new("target_lang", targetLanguage),
+                // new("source_lang", sourceLanguage)
+            };
+            var content = new FormUrlEncodedContent(collection);
+            request.Content = content;
+            var response = await client.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            var responseBody = await response.Content.ReadAsStringAsync();
 
-        protected override string ExtractTranslatedText(string responseBody, string originalText)
-        {
             try
             {
-                var result = JsonSerializer.Deserialize<DeepLResponse>(responseBody);
-                return result?.Translations?.FirstOrDefault()?.Text ?? originalText;
+                var result = JsonConvert.DeserializeObject<DeepLResponse>(responseBody);
+                return result?.Translations?.FirstOrDefault()?.Text ?? text;
             }
             catch (JsonException)
             {
-                return originalText;
+                return text;
             }
+
         }
 
-        private class DeepLResponse
+        public override async Task<string> DetectLanguageAsync(string text)
         {
-            public List<DeepLTranslation> Translations { get; set; }
+            return await Task.FromResult(string.Empty);
         }
 
-        private class DeepLTranslation
+        public class Translation
         {
+            [JsonProperty("detected_source_language")]
+            public string DetectedSourceLanguage { get; set; }
+
             public string Text { get; set; }
+        }
+
+        public class DeepLResponse
+        {
+            public List<Translation> Translations { get; set; }
         }
     }
 }
