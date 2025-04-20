@@ -14,8 +14,11 @@ namespace ResumeSpy.Core.Entities.General
 
         [Required]
         public string? Title { get; set; }
+        
         public int ResumeDetailCount { get; set; }
+        
         public string? ResumeImgPath { get; set; }
-
+       
+        public virtual ICollection<ResumeDetail>? ResumeDetails { get; set; }
     }
 }
