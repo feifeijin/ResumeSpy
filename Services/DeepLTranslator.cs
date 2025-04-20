@@ -23,7 +23,7 @@ namespace ResumeSpy.Services
             {
                 new("text", text),
                 new("target_lang", targetLanguage),
-                // new("source_lang", sourceLanguage)
+                new("source_lang", sourceLanguage??"en")
             };
             var content = new FormUrlEncodedContent(collection);
             request.Content = content;
