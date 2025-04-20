@@ -11,7 +11,7 @@ namespace ResumeSpy.Core.Entities.General
     public class Base<T>
     {
         [Key]
-        public T Id { get; set; }
+        public required T Id { get; set; }
         public DateTime? EntryDate { get; set; }
         public DateTime? UpdateDate { get; set; }
     }
