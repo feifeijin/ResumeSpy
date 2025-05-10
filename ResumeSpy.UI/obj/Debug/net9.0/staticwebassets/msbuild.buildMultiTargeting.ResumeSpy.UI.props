@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="../build/ResumeSpy.UI.props" />
+</Project>

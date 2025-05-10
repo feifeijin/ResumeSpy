@@ -1,0 +1,13 @@
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/bin/Debug/net9.0/ResumeSpy.Core.deps.json
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/bin/Debug/net9.0/ResumeSpy.Core.dll
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/bin/Debug/net9.0/ResumeSpy.Core.pdb
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/obj/Debug/net9.0/ResumeSpy.Core.csproj.AssemblyReference.cache
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/obj/Debug/net9.0/ResumeSpy.Core.GeneratedMSBuildEditorConfig.editorconfig
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/obj/Debug/net9.0/ResumeSpy.Core.AssemblyInfoInputs.cache
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/obj/Debug/net9.0/ResumeSpy.Core.AssemblyInfo.cs
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/obj/Debug/net9.0/ResumeSpy.Core.csproj.CoreCompileInputs.cache
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/obj/Debug/net9.0/ResumeSpy.Core.sourcelink.json
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/obj/Debug/net9.0/ResumeSpy.Core.dll
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/obj/Debug/net9.0/refint/ResumeSpy.Core.dll
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/obj/Debug/net9.0/ResumeSpy.Core.pdb
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.Core/obj/Debug/net9.0/ref/ResumeSpy.Core.dll

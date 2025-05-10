@@ -21,8 +21,5 @@ namespace ResumeSpy.Core.Exceptions
         {
         }
 
-        protected NotFoundException(SerializationInfo info, StreamingContext context) : base(info, context)
-        {
-        }
     }
 }
