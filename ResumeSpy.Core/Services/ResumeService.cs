@@ -35,9 +35,13 @@ namespace ResumeSpy.Core.Services
             return _resumeViewModelMapper.MapModel(await _resumeRepository.Create(entity));
         }
 
-        public async Task Delete(int id)
+        public async Task Delete(string id)
         {
             var entity = await _resumeRepository.GetById(id);
+            if (entity == null)
+            {
+                throw new NotFoundException($"Resume with id {id} not found.");
+            }
             await _resumeRepository.Delete(entity);
         }
 
@@ -51,9 +55,14 @@ namespace ResumeSpy.Core.Services
             return PaginatedDataViewModel;
         }
 
-        public async Task<ResumeViewModel> GetResume(int id)
+        public async Task<ResumeViewModel> GetResume(string id)
         {
-            return _resumeViewModelMapper.MapModel(await _resumeRepository.GetById(id));
+            var entity = await _resumeRepository.GetById(id);
+            if (entity == null)
+            {
+                throw new NotFoundException($"Resume with id {id} not found.");
+            }
+           return _resumeViewModelMapper.MapModel(entity);
         }
 
         public async Task<IEnumerable<ResumeViewModel>> GetResumes()
@@ -67,7 +76,7 @@ namespace ResumeSpy.Core.Services
             return await _resumeRepository.IsExists(key, value);
         }
 
-        public async Task<bool> IsExistsForUpdate(int id, string key, string value)
+        public async Task<bool> IsExistsForUpdate(string id, string key, string value)
         {
             return await _resumeRepository.IsExistsForUpdate(id, key, value);
         }

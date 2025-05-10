@@ -10,13 +10,13 @@ namespace ResumeDetailSpy.Core.Interfaces.IServices
 {
     public interface IResumeDetailService
     {
-        Task<IEnumerable<ResumeDetailViewModel>> GetResumeDetails();
+        Task<IEnumerable<ResumeDetailViewModel>> GetResumeDetailsByResumeId(string resumeId);
         Task<PaginatedDataViewModel<ResumeDetailViewModel>> GetPaginatedResumeDetails(int pageNumber, int pageSize);
-        Task<ResumeDetailViewModel> GetResumeDetail(int id);
+        Task<ResumeDetailViewModel> GetResumeDetail(string id);
         Task<bool> IsExists(string key, string value);
-        Task<bool> IsExistsForUpdate(int id, string key, string value);
+        Task<bool> IsExistsForUpdate(string id, string key, string value);
         Task<ResumeDetailViewModel> Create(ResumeDetailViewModel model);
         Task Update(ResumeDetailViewModel model);
-        Task Delete(int id);
+        Task Delete(string id);
     }
 }

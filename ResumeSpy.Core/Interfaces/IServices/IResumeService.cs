@@ -12,11 +12,11 @@ namespace ResumeSpy.Core.Interfaces.IServices
     {
         Task<IEnumerable<ResumeViewModel>> GetResumes();
         Task<PaginatedDataViewModel<ResumeViewModel>> GetPaginatedResumes(int pageNumber, int pageSize);
-        Task<ResumeViewModel> GetResume(int id);
+        Task<ResumeViewModel> GetResume(string id);
         Task<bool> IsExists(string key, string value);
-        Task<bool> IsExistsForUpdate(int id, string key, string value);
+        Task<bool> IsExistsForUpdate(string id, string key, string value);
         Task<ResumeViewModel> Create(ResumeViewModel model);
         Task Update(ResumeViewModel model);
-        Task Delete(int id);
+        Task Delete(string id);
     }
 }
