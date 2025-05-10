@@ -19,8 +19,5 @@ namespace ResumeSpy.Core.Entities.General
 
         [ForeignKey("ResumeId")]      
         public virtual Resume? Resume { get; set; }
-
-
-
     }
 }
