@@ -73,17 +73,27 @@ namespace ResumeSpy.Core.Services
 
         public Task<bool> IsExists(string key, string value)
         {
-            throw new NotImplementedException();
+            return _resumeDetailRepository.IsExists(key, value);
         }
 
         public Task<bool> IsExistsForUpdate(string id, string key, string value)
         {
-            throw new NotImplementedException();
+            return _resumeDetailRepository.IsExistsForUpdate(id, key, value);
         }
 
-        public Task Update(ResumeDetailViewModel model)
+        public async Task Update(ResumeDetailViewModel model)
         {
-            throw new NotImplementedException();
+            var existingData = await _resumeDetailRepository.GetById(model.Id);
+            if (existingData == null)
+            {
+                throw new NotFoundException($"ResumeDetail with id {model.Id} not found.");
+            }
+            existingData.Content = model.Content;
+            existingData.Name = model.Name;
+            existingData.UpdateDate = DateTime.Now;
+            existingData.IsDefault = model.IsDefault;
+            existingData.Language = model.Language;
+            await _resumeDetailRepository.Update(existingData);
         }
     }
 }
