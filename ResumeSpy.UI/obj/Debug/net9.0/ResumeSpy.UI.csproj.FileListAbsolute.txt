@@ -1,11 +1,3 @@
-/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.csproj.AssemblyReference.cache
-/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.GeneratedMSBuildEditorConfig.editorconfig
-/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.AssemblyInfoInputs.cache
-/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.AssemblyInfo.cs
-/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.csproj.CoreCompileInputs.cache
-/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.MvcApplicationPartsAssemblyInfo.cs
-/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.MvcApplicationPartsAssemblyInfo.cache
-/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.sourcelink.json
 /Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/bin/Debug/net9.0/appsettings.Development.json
 /Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/bin/Debug/net9.0/appsettings.json
 /Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/bin/Debug/net9.0/ResumeSpy.UI.staticwebassets.endpoints.json
@@ -18,6 +10,14 @@
 /Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/bin/Debug/net9.0/Microsoft.AspNetCore.OpenApi.dll
 /Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/bin/Debug/net9.0/Microsoft.OpenApi.dll
 /Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/bin/Debug/net9.0/Newtonsoft.Json.dll
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.csproj.AssemblyReference.cache
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.GeneratedMSBuildEditorConfig.editorconfig
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.AssemblyInfoInputs.cache
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.AssemblyInfo.cs
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.csproj.CoreCompileInputs.cache
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.MvcApplicationPartsAssemblyInfo.cs
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.MvcApplicationPartsAssemblyInfo.cache
+/Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/ResumeSpy.UI.sourcelink.json
 /Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/scopedcss/bundle/ResumeSpy.UI.styles.css
 /Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/staticwebassets.build.json
 /Users/ws/Documents/DotCore/ResumeSpy/ResumeSpy.UI/obj/Debug/net9.0/staticwebassets.development.json

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ResumeSpy.UI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2b81fe468921316049720abe0f9994870c42d8f8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5a46f504f9a9b60dc1ae33e5ca66386093576f4c")]
 [assembly: System.Reflection.AssemblyProductAttribute("ResumeSpy.UI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ResumeSpy.UI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
