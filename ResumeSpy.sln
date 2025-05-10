@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ResumeSpy.Core", "ResumeSpy
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ResumeSpy.UI", "ResumeSpy.UI\ResumeSpy.UI.csproj", "{385B5E1D-4821-4BC7-8E06-38FA1E3380A3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ResumeSpy.Infrastructure", "ResumeSpy.Infrastructure\ResumeSpy.Infrastructure.csproj", "{9CC73A1F-156C-4F79-AAA8-40115505E442}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,6 +22,10 @@ Global
 		{385B5E1D-4821-4BC7-8E06-38FA1E3380A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{385B5E1D-4821-4BC7-8E06-38FA1E3380A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{385B5E1D-4821-4BC7-8E06-38FA1E3380A3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9CC73A1F-156C-4F79-AAA8-40115505E442}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9CC73A1F-156C-4F79-AAA8-40115505E442}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9CC73A1F-156C-4F79-AAA8-40115505E442}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9CC73A1F-156C-4F79-AAA8-40115505E442}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
