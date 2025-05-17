@@ -12,6 +12,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ResumeSpy.Core\ResumeSpy.Core.csproj" / >
     <ProjectReference Include="..\ResumeSpy.Infrastructure\ResumeSpy.Infrastructure.csproj" />
   </ItemGroup>
 </Project>
