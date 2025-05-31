@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
+using ResumeSpy.Core.Entities.Business;
+using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.UI.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using X.PagedList;
+
 
 namespace ResumeSpy.UI.Controllers
 {
@@ -10,6 +12,17 @@ namespace ResumeSpy.UI.Controllers
     [Route("api/[controller]")]
     public class ResumeController : ControllerBase
     {
+        private readonly ILogger<ResumeController> _logger;
+        private readonly IResumeService _resumeService;
+        private readonly IMemoryCache _memoryCache;
+
+        public ResumeController(ILogger<ResumeController> logger, IResumeService resumeService, IMemoryCache memoryCache)
+        {
+            _logger = logger;
+            _resumeService = resumeService;
+            _memoryCache = memoryCache;
+        }
+
         private static List<ResumeModel> Resumes = new List<ResumeModel>
         {
             new ResumeModel
@@ -61,9 +74,15 @@ namespace ResumeSpy.UI.Controllers
         };
 
         [HttpGet]
-        public ActionResult<IEnumerable<ResumeModel>> GetResumes()
+        public async Task<ActionResult<IEnumerable<ResumeModel>>> GetResumes()
         {
-            return Ok(Resumes);
+            int page = 1;
+            int pageSize = 100;
+
+            var resumes = await _resumeService.GetPaginatedResumes(page, pageSize);
+            var pagedResumes = new StaticPagedList<ResumeViewModel>(resumes.Data, page, pageSize, resumes.TotalCount);
+
+            return Ok(pagedResumes);
         }
 
         [HttpGet("{id}")]

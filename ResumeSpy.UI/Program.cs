@@ -1,14 +1,32 @@
+using Microsoft.EntityFrameworkCore;
+using ResumeSpy.Infrastructure.Data;
+using ResumeSpy.UI.Extensions;
+using ResumeSpy.UI.Middlewares;
 using ResumeSpy.UI.Interfaces;
 using ResumeSpy.UI.Services;
 using ResumeSpy.UI.Configuration;
-using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
+    options.UseSqlServer(builder.Configuration.GetConnectionString("PrimaryDbConnection"));
+});
 
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddHttpClient();
+
+builder.Services.AddControllersWithViews();
+builder.Services.RegisterService();
+
+// Add caching services
+builder.Services.AddMemoryCache();
+
+// Register ILogger service
+builder.Services.AddLogging();
+
 
 // Load translator settings from configuration
 builder.Services.Configure<TranslatorSettings>(builder.Configuration.GetSection("TranslatorSettings"));
