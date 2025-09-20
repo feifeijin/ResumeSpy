@@ -15,19 +15,21 @@ namespace ResumeSpy.UI.Controllers
         private readonly ILogger<ResumeController> _logger;
         private readonly IResumeDetailService _resumeDetailService;
         private readonly IMemoryCache _memoryCache;
-
         private readonly TranslationService _translationService;
+        private readonly IResumeManagementService _resumeManagementService;
 
         public ResumeDetailController(
             ILogger<ResumeController> logger,
             IResumeDetailService resumeDetailService,
             IMemoryCache memoryCache,
-            TranslationService translationService)
+            TranslationService translationService,
+            IResumeManagementService resumeManagementService)
         {
             _logger = logger;
             _resumeDetailService = resumeDetailService;
             _memoryCache = memoryCache;
             _translationService = translationService;
+            _resumeManagementService = resumeManagementService;
         }
 
         [HttpGet]
@@ -54,12 +56,19 @@ namespace ResumeSpy.UI.Controllers
         [HttpPost]
         public async Task<ActionResult<ResumeDetailViewModel>> CreateResumeDetailModelAsync([FromBody] ResumeDetailViewModel resumeDetailModel)
         {
-            var details = (await _resumeDetailService.GetResumeDetailsByResumeId(resumeDetailModel.ResumeId)).ToList();
-            resumeDetailModel.Id = (details.Count + 1).ToString();
-            resumeDetailModel.CreateTime = DateTime.UtcNow.ToShortDateString();
-            resumeDetailModel.LastModifyTime = DateTime.UtcNow.ToShortDateString();
-            var result = await _resumeDetailService.Create(resumeDetailModel);
-            return Ok(result);
+            try
+            {
+                resumeDetailModel.CreateTime = DateTime.UtcNow.ToShortDateString();
+                resumeDetailModel.LastModifyTime = DateTime.UtcNow.ToShortDateString();
+                
+                var result = await _resumeManagementService.CreateResumeDetailAsync(resumeDetailModel);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating resume detail");
+                return StatusCode(500, "An error occurred while creating the resume detail");
+            }
         }
 
         [HttpPut("{id}")]
@@ -157,7 +166,7 @@ namespace ResumeSpy.UI.Controllers
 
     public class CopyRequest
     {
-        public string ExistingResumeDetailId { get; set; }
-        public string Language { get; set; }
+        public required string ExistingResumeDetailId { get; set; }
+        public required string Language { get; set; }
     }
 }

@@ -12,23 +12,26 @@ namespace ResumeSpy.Core.Services
         private readonly IBaseMapper<ResumeDetail, ResumeDetailViewModel> _resumeDetailViewModelMapper;
         private readonly IBaseMapper<ResumeDetailViewModel, ResumeDetail> _resumeDetailMapper;
         private readonly IResumeDetailRepository _resumeDetailRepository;
+        private readonly IUnitOfWork _unitOfWork;
         
         public ResumeDetailService(
             IBaseMapper<ResumeDetail, ResumeDetailViewModel> resumeDetailViewModelMapper,
             IBaseMapper<ResumeDetailViewModel, ResumeDetail> resumeDetailMapper,
-            IResumeDetailRepository resumeDetailRepository)
+            IResumeDetailRepository resumeDetailRepository,
+            IUnitOfWork unitOfWork)
         {
             _resumeDetailViewModelMapper = resumeDetailViewModelMapper;
             _resumeDetailMapper = resumeDetailMapper;
             _resumeDetailRepository = resumeDetailRepository;
+            _unitOfWork = unitOfWork;
         }
         public async Task<ResumeDetailViewModel> Create(ResumeDetailViewModel model)
         {
              var entity = _resumeDetailMapper.MapModel(model);
             entity.EntryDate    = DateTime.Now;     
-            return _resumeDetailViewModelMapper.MapModel(await _resumeDetailRepository.Create(entity));
-       
-            throw new NotImplementedException();
+            var result = await _resumeDetailRepository.Create(entity);
+            await _unitOfWork.SaveChangesAsync();
+            return _resumeDetailViewModelMapper.MapModel(result);
         }
 
         public async Task Delete(string id)
@@ -39,6 +42,7 @@ namespace ResumeSpy.Core.Services
                 throw new NotFoundException($"ResumeDetail with id {id} not found.");
             }
             await _resumeDetailRepository.Delete(entity);
+            await _unitOfWork.SaveChangesAsync();
         } 
 
         public async Task<PaginatedDataViewModel<ResumeDetailViewModel>> GetPaginatedResumeDetails(int pageNumber, int pageSize)
@@ -93,6 +97,7 @@ namespace ResumeSpy.Core.Services
             existingData.IsDefault = model.IsDefault;
             existingData.Language = model.Language;
             await _resumeDetailRepository.Update(existingData);
+            await _unitOfWork.SaveChangesAsync();
         }
     }
 }

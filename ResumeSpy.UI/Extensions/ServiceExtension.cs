@@ -18,12 +18,14 @@ namespace ResumeSpy.UI.Extensions
             #region Services
             services.AddScoped<IResumeService, ResumeService>();
             services.AddScoped<IResumeDetailService, ResumeDetailService>();
+            services.AddScoped<IResumeManagementService, ResumeManagementService>();
 
             #endregion
 
             #region Repositories
-            services.AddTransient<IResumeRepository, ResumeRepository>();
-            services.AddTransient<IResumeDetailRepository, ResumeDetailRepository>();
+            services.AddScoped<IResumeRepository, ResumeRepository>();
+            services.AddScoped<IResumeDetailRepository, ResumeDetailRepository>();
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             #endregion
 

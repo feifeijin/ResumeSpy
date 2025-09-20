@@ -17,22 +17,27 @@ namespace ResumeSpy.Core.Services
         private readonly IBaseMapper<Resume, ResumeViewModel> _resumeViewModelMapper;
         private readonly IBaseMapper<ResumeViewModel, Resume> _resumeMapper;
         private readonly IResumeRepository _resumeRepository;
+        private readonly IUnitOfWork _unitOfWork;
 
         public ResumeService(
             IBaseMapper<Resume, ResumeViewModel> resumeViewModelMapper,
             IBaseMapper<ResumeViewModel, Resume> resumeMapper,
-            IResumeRepository resumeRepository)
+            IResumeRepository resumeRepository,
+            IUnitOfWork unitOfWork)
         {
             _resumeViewModelMapper = resumeViewModelMapper;
             _resumeMapper = resumeMapper;
             _resumeRepository = resumeRepository;
+            _unitOfWork = unitOfWork;
         }
 
         public async Task<ResumeViewModel> Create(ResumeViewModel model)
         {
             var entity = _resumeMapper.MapModel(model);
-            entity.EntryDate    = DateTime.Now;     
-            return _resumeViewModelMapper.MapModel(await _resumeRepository.Create(entity));
+            entity.EntryDate = DateTime.Now;
+            var result = await _resumeRepository.Create(entity);
+            await _unitOfWork.SaveChangesAsync();
+            return _resumeViewModelMapper.MapModel(result);
         }
 
         public async Task Delete(string id)
@@ -43,6 +48,7 @@ namespace ResumeSpy.Core.Services
                 throw new NotFoundException($"Resume with id {id} not found.");
             }
             await _resumeRepository.Delete(entity);
+            await _unitOfWork.SaveChangesAsync();
         }
 
         public  async Task<PaginatedDataViewModel<ResumeViewModel>> GetPaginatedResumes(int pageNumber, int pageSize)
@@ -84,12 +90,16 @@ namespace ResumeSpy.Core.Services
         public async Task Update(ResumeViewModel model)
         {
             var existingData = await _resumeRepository.GetById(model.Id);
-            existingData.ResumeDetailCount = model.ResumeDetailCount;
-            existingData.ResumeImgPath = model.ResumeImgPath;
-            existingData.Title = model.Title;
-            existingData.UpdateDate = DateTime.Now;
+            if (existingData != null)
+            {
+                existingData.ResumeDetailCount = model.ResumeDetailCount;
+                existingData.ResumeImgPath = model.ResumeImgPath ?? string.Empty;
+                existingData.Title = model.Title ?? string.Empty;
+                existingData.UpdateDate = DateTime.Now;
 
-            await _resumeRepository.Update(existingData);
+                await _resumeRepository.Update(existingData);
+                await _unitOfWork.SaveChangesAsync();
+            }
         }
     }
 }

@@ -76,25 +76,22 @@ namespace ResumeSpy.Infrastructure.Repositories
         public async Task<T> Create(T model)
         {
             await _dbContext.Set<T>().AddAsync(model);
-            await _dbContext.SaveChangesAsync();
+            // Don't call SaveChanges here - let UnitOfWork handle it
             return model;
         }
 
-        public async Task Update(T model)
+        public Task Update(T model)
         {
             _dbContext.Set<T>().Update(model);
-            await _dbContext.SaveChangesAsync();
+            // Don't call SaveChanges here - let UnitOfWork handle it
+            return Task.CompletedTask;
         }
 
-        public async Task Delete(T model)
+        public Task Delete(T model)
         {
             _dbContext.Set<T>().Remove(model);
-            await _dbContext.SaveChangesAsync();
-        }
-
-        public async Task SaveChangeAsync()
-        {
-            await _dbContext.SaveChangesAsync();
+            // Don't call SaveChanges here - let UnitOfWork handle it
+            return Task.CompletedTask;
         }
 
     }
