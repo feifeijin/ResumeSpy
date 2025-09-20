@@ -48,9 +48,15 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowSpecificOrigin",
         builder => builder
-            .WithOrigins("http://localhost:5173") // Replace with your allowed origin(s)
+            .WithOrigins(
+                "http://localhost:5173",    // Frontend (HTTP)
+                "https://localhost:5173",   // Frontend (HTTPS)
+                "http://localhost:5293",    // API (HTTP)
+                "https://localhost:7227"    // API (HTTPS)
+            )
             .AllowAnyMethod()
-            .AllowAnyHeader());
+            .AllowAnyHeader()
+            .AllowCredentials()); // Add this for better cross-origin support
 });
 
 var app = builder.Build();
@@ -61,12 +67,11 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
-
-app.UseAuthorization();
-
-// Use the CORS middleware
+// Use the CORS middleware BEFORE other middleware
 app.UseCors("AllowSpecificOrigin");
+
+app.UseHttpsRedirection();
+app.UseAuthorization();
 
 app.MapControllers();
 

@@ -25,13 +25,13 @@ namespace ResumeSpy.Core.Services
 
         public async Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model)
         {
-            // Case 1: Resume exists (ResumeId is provided and not empty)
-            if (!string.IsNullOrEmpty(model.ResumeId))
+            // Case 1: Resume exists (ResumeId is provided and not empty and not "undefined")
+            if (!string.IsNullOrEmpty(model.ResumeId) && model.ResumeId != "undefined")
             {
                 return await CreateResumeDetailForExistingResume(model);
             }
 
-            // Case 2: Resume doesn't exist (ResumeId is null or empty)
+            // Case 2: Resume doesn't exist (ResumeId is null, empty, or "undefined")
             // Create Resume first, then ResumeDetail in a transaction
             return await CreateResumeDetailWithNewResume(model);
         }
@@ -41,7 +41,7 @@ namespace ResumeSpy.Core.Services
             // Get existing details to determine the next ID
             var existingDetails = (await _resumeDetailService.GetResumeDetailsByResumeId(model.ResumeId)).ToList();
             model.Id = (existingDetails.Count + 1).ToString();
-            
+
             var result = await _resumeDetailService.Create(model);
             await _unitOfWork.SaveChangesAsync(); // Save immediately for single operation
             return result;
@@ -65,8 +65,7 @@ namespace ResumeSpy.Core.Services
 
                 // Now create ResumeDetail with the new Resume ID
                 model.ResumeId = createdResume.Id;
-                model.Id = "1"; // First detail for this resume
-
+                model.Id = Guid.NewGuid().ToString();
                 var result = await _resumeDetailService.Create(model);
 
                 // Save all changes within the transaction
