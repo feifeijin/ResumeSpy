@@ -18,8 +18,15 @@ namespace ResumeSpy.UI.Controllers
 
         private readonly TranslationService _translationService;
 
-        public ResumeDetailController(TranslationService translationService)
+        public ResumeDetailController(
+            ILogger<ResumeController> logger,
+            IResumeDetailService resumeDetailService,
+            IMemoryCache memoryCache,
+            TranslationService translationService)
         {
+            _logger = logger;
+            _resumeDetailService = resumeDetailService;
+            _memoryCache = memoryCache;
             _translationService = translationService;
         }
 

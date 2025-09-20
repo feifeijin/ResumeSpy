@@ -29,6 +29,21 @@ namespace ResumeSpy.Infrastructure.Data
             ApplicationDbContextConfigurations.Configure(builder);
             // ApplicationDbContextConfigurations.SeedData(builder);
 
+            builder.Entity<Resume>()
+                .Property(e => e.EntryDate)
+                .HasColumnType("timestamp");
+
+            builder.Entity<Resume>()
+                .Property(e => e.UpdateDate)
+                .HasColumnType("timestamp");
+
+            builder.Entity<ResumeDetail>()
+            .Property(e => e.EntryDate)
+            .HasColumnType("timestamp");
+
+            builder.Entity<ResumeDetail>()
+                .Property(e => e.UpdateDate)
+                .HasColumnType("timestamp");
         }
 
     }

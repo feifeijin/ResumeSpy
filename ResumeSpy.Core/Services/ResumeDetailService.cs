@@ -61,7 +61,7 @@ namespace ResumeSpy.Core.Services
 
         public async Task<IEnumerable<ResumeDetailViewModel>> GetResumeDetailsByResumeId(string resumeId)
         {
-            var entities = await _resumeDetailRepository.GetResumeDetailsByResumeId(resumeId);    
+            var entities = await _resumeDetailRepository.GetResumeDetailsByResumeIdAsync(resumeId);    
             if (entities == null)
             {
                 throw new NotFoundException($"ResumeDetail with id {resumeId} not found.");
