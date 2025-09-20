@@ -8,8 +8,8 @@ namespace ResumeSpy.Core.Entities.Business
         public required string Language { get; set; }
         public required string Content { get; set; }
         public bool IsDefault { get; set; }
-        public  string? EntryDate { get; set; }
-        public  string? UpdateDate { get; set; }
+        public  string? CreateTime { get; set; }
+        public  string? LastModifyTime { get; set; }
 
     }
 }

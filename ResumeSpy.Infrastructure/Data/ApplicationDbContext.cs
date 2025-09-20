@@ -27,7 +27,7 @@ namespace ResumeSpy.Infrastructure.Data
             base.OnModelCreating(builder);
 
             ApplicationDbContextConfigurations.Configure(builder);
-            ApplicationDbContextConfigurations.SeedData(builder);
+            // ApplicationDbContextConfigurations.SeedData(builder);
 
         }
 

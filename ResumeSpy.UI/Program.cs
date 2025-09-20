@@ -10,7 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    options.UseSqlServer(builder.Configuration.GetConnectionString("PrimaryDbConnection"));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("PrimaryDbConnection"));
 });
 
 // Add services to the container.

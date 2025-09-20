@@ -22,54 +22,54 @@ namespace ResumeSpy.Infrastructure.Data
         public static void SeedData(ModelBuilder modelBuilder)
         {
             // Add any seed data here
-            modelBuilder.Entity<Resume>().HasData(
-            new Resume
-            {
-                Id = Guid.NewGuid().ToString(),
-                Title = "Resume 1",
-                ResumeDetailCount = 3,
-                ResumeImgPath = "/assets/discover_bg.png",
-                EntryDate = DateTime.UtcNow,
-                UpdateDate = DateTime.UtcNow
-            },
-            new Resume
-            {
-                Id = Guid.NewGuid().ToString(),
-                Title = "Resume 2",
-                ResumeDetailCount = 2,
-                ResumeImgPath = "/assets/discover_bg.png",
-                EntryDate = DateTime.UtcNow,
-                UpdateDate = DateTime.UtcNow
+            // modelBuilder.Entity<Resume>().HasData(
+            // new Resume
+            // {
+            //     Id = Guid.NewGuid().ToString(),
+            //     Title = "Resume 1",
+            //     ResumeDetailCount = 3,
+            //     ResumeImgPath = "/assets/discover_bg.png",
+            //     EntryDate = DateTime.UtcNow,
+            //     UpdateDate = DateTime.UtcNow
+            // },
+            // new Resume
+            // {
+            //     Id = Guid.NewGuid().ToString(),
+            //     Title = "Resume 2",
+            //     ResumeDetailCount = 2,
+            //     ResumeImgPath = "/assets/discover_bg.png",
+            //     EntryDate = DateTime.UtcNow,
+            //     UpdateDate = DateTime.UtcNow
 
-            },
-            new Resume
-            {
-                Id = Guid.NewGuid().ToString(),
-                Title = "Resume 3",
-                ResumeDetailCount = 5,
-                ResumeImgPath = "/assets/discover_bg.png",
-                EntryDate = DateTime.UtcNow,
-                UpdateDate = DateTime.UtcNow
-            },
-            new Resume
-            {
-                Id = Guid.NewGuid().ToString(),
-                Title = "Resume 4",
-                ResumeDetailCount = 1,
-                ResumeImgPath = "/assets/discover_bg.png",
-                EntryDate = DateTime.UtcNow,
-                UpdateDate = DateTime.UtcNow
-            },
-            new Resume
-            {
-                Id = Guid.NewGuid().ToString(),
-                Title = "Resume 5",
-                ResumeDetailCount = 4,
-                ResumeImgPath = "/assets/discover_bg.png",
-                EntryDate = DateTime.UtcNow,
-                UpdateDate = DateTime.UtcNow
-            }
-            );
+            // },
+            // new Resume
+            // {
+            //     Id = Guid.NewGuid().ToString(),
+            //     Title = "Resume 3",
+            //     ResumeDetailCount = 5,
+            //     ResumeImgPath = "/assets/discover_bg.png",
+            //     EntryDate = DateTime.UtcNow,
+            //     UpdateDate = DateTime.UtcNow
+            // },
+            // new Resume
+            // {
+            //     Id = Guid.NewGuid().ToString(),
+            //     Title = "Resume 4",
+            //     ResumeDetailCount = 1,
+            //     ResumeImgPath = "/assets/discover_bg.png",
+            //     EntryDate = DateTime.UtcNow,
+            //     UpdateDate = DateTime.UtcNow
+            // },
+            // new Resume
+            // {
+            //     Id = Guid.NewGuid().ToString(),
+            //     Title = "Resume 5",
+            //     ResumeDetailCount = 4,
+            //     ResumeImgPath = "/assets/discover_bg.png",
+            //     EntryDate = DateTime.UtcNow,
+            //     UpdateDate = DateTime.UtcNow
+            // }
+            // );
 
         }
 

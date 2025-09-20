@@ -11,13 +11,13 @@ namespace ResumeSpy.Core.Entities.General
     [Table("ResumeDetails")]
     public class ResumeDetail : Base<string>
     {
-        public required string ResumeId { get; set; }
+        [Required]
+        public string ResumeId { get; set; }
         public string? Name { get; set; }
         public string? Language { get; set; }
         public string? Content { get; set; }
         public bool IsDefault { get; set; }
 
-        [ForeignKey("ResumeId")]      
         public virtual Resume? Resume { get; set; }
     }
 }

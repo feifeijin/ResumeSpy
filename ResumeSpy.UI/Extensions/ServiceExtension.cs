@@ -17,11 +17,13 @@ namespace ResumeSpy.UI.Extensions
         {
             #region Services
             services.AddScoped<IResumeService, ResumeService>();
+            services.AddScoped<IResumeDetailService, ResumeDetailService>();
 
             #endregion
 
             #region Repositories
             services.AddTransient<IResumeRepository, ResumeRepository>();
+            services.AddTransient<IResumeDetailRepository, ResumeDetailRepository>();
 
             #endregion
 
@@ -30,6 +32,8 @@ namespace ResumeSpy.UI.Extensions
             {
                 cfg.CreateMap<Resume, ResumeViewModel>();
                 cfg.CreateMap<ResumeViewModel, Resume>();
+                cfg.CreateMap<ResumeDetail, ResumeDetailViewModel>();
+                cfg.CreateMap<ResumeDetailViewModel, ResumeDetail>();
             });
 
             IMapper mapper = configuration.CreateMapper();
@@ -37,6 +41,8 @@ namespace ResumeSpy.UI.Extensions
             // Register the IMapperService implementation with your dependency injection container
             services.AddSingleton<IBaseMapper<Resume, ResumeViewModel>>(new BaseMapper<Resume, ResumeViewModel>(mapper));
             services.AddSingleton<IBaseMapper<ResumeViewModel, Resume>>(new BaseMapper<ResumeViewModel, Resume>(mapper));
+            services.AddSingleton<IBaseMapper<ResumeDetail, ResumeDetailViewModel>>(new BaseMapper<ResumeDetail, ResumeDetailViewModel>(mapper));
+            services.AddSingleton<IBaseMapper<ResumeDetailViewModel, ResumeDetail>>(new BaseMapper<ResumeDetailViewModel, ResumeDetail>(mapper));
 
             #endregion
 

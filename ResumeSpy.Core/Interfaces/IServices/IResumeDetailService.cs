@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ResumeDetailSpy.Core.Interfaces.IServices
+namespace ResumeSpy.Core.Interfaces.IServices
 {
     public interface IResumeDetailService
     {

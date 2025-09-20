@@ -1,4 +1,3 @@
-using ResumeDetailSpy.Core.Interfaces.IServices;
 using ResumeSpy.Core.Entities.Business;
 using ResumeSpy.Core.Entities.General;
 using ResumeSpy.Core.Exceptions;

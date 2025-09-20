@@ -1,10 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
+using ResumeSpy.Core.Entities.Business;
+using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.UI.Models;
 using ResumeSpy.UI.Services;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace ResumeSpy.UI.Controllers
 {
@@ -12,9 +11,10 @@ namespace ResumeSpy.UI.Controllers
     [Route("api/[controller]")]
     public class ResumeDetailController : ControllerBase
     {
-        private static List<ResumeDetailModel> ResumeDetailModels = new List<ResumeDetailModel>
-        {
-        };
+
+        private readonly ILogger<ResumeController> _logger;
+        private readonly IResumeDetailService _resumeDetailService;
+        private readonly IMemoryCache _memoryCache;
 
         private readonly TranslationService _translationService;
 
@@ -24,12 +24,12 @@ namespace ResumeSpy.UI.Controllers
         }
 
         [HttpGet]
-        public ActionResult<List<ResumeDetailModel>> GetResumeDetailModels([FromQuery] string resumeId)
+        public async Task<ActionResult<List<ResumeDetailViewModel>>> GetResumeDetailModelsAsync([FromQuery] string resumeId)
         {
-            var details = ResumeDetailModels.Where(rd => rd.ResumeId == resumeId).ToList();
-            if (details.Count == 0)
+            var details = (await _resumeDetailService.GetResumeDetailsByResumeId(resumeId)).ToList();
+            if (details.Count() == 0)
             {
-                details.Add(new ResumeDetailModel
+                details.Add(new ResumeDetailViewModel
                 {
                     Id = string.Empty,
                     ResumeId = resumeId,
@@ -37,27 +37,28 @@ namespace ResumeSpy.UI.Controllers
                     Language = string.Empty,
                     Content = string.Empty,
                     IsDefault = true,
-                    CreateTime = DateTime.UtcNow,
-                    LastModifyTime = DateTime.UtcNow
+                    CreateTime = DateTime.UtcNow.ToShortDateString(),
+                    LastModifyTime = DateTime.UtcNow.ToShortDateString()
                 });
             }
             return Ok(details);
         }
 
         [HttpPost]
-        public ActionResult<ResumeDetailModel> CreateResumeDetailModel([FromBody] ResumeDetailModel ResumeDetailModel)
+        public async Task<ActionResult<ResumeDetailViewModel>> CreateResumeDetailModelAsync([FromBody] ResumeDetailViewModel resumeDetailModel)
         {
-            ResumeDetailModel.Id = (ResumeDetailModels.Count + 1).ToString();
-            ResumeDetailModel.CreateTime = DateTime.UtcNow;
-            ResumeDetailModel.LastModifyTime = DateTime.UtcNow;
-            ResumeDetailModels.Add(ResumeDetailModel);
-            return CreatedAtAction(nameof(GetResumeDetailModels), new { resumeId = ResumeDetailModel.ResumeId }, ResumeDetailModel);
+            var details = (await _resumeDetailService.GetResumeDetailsByResumeId(resumeDetailModel.ResumeId)).ToList();
+            resumeDetailModel.Id = (details.Count + 1).ToString();
+            resumeDetailModel.CreateTime = DateTime.UtcNow.ToShortDateString();
+            resumeDetailModel.LastModifyTime = DateTime.UtcNow.ToShortDateString();
+            var result = await _resumeDetailService.Create(resumeDetailModel);
+            return Ok(result);
         }
 
         [HttpPut("{id}")]
-        public ActionResult<ResumeDetailModel> UpdateResumeDetailModel(string id, [FromBody] ResumeDetailModel updatedDetail)
+        public async Task<ActionResult<ResumeDetailViewModel>> UpdateResumeDetailModelAsync(string id, [FromBody] ResumeDetailViewModel updatedDetail)
         {
-            var existingDetail = ResumeDetailModels.FirstOrDefault(rd => rd.Id == id);
+            var existingDetail = await _resumeDetailService.GetResumeDetail(updatedDetail.Id);
             if (existingDetail == null)
             {
                 return NotFound();
@@ -67,54 +68,58 @@ namespace ResumeSpy.UI.Controllers
             existingDetail.Language = updatedDetail.Language;
             existingDetail.Content = updatedDetail.Content;
             existingDetail.IsDefault = updatedDetail.IsDefault;
-            existingDetail.LastModifyTime = DateTime.UtcNow;
+            existingDetail.LastModifyTime = DateTime.UtcNow.ToShortDateString();
+            await _resumeDetailService.Update(existingDetail);
 
             return Ok(existingDetail);
         }
 
         [HttpPatch("{id}/name")]
-        public ActionResult<ResumeDetailModel> UpdateResumeDetailModelName(string id, [FromBody] string newName)
+        public async Task<ActionResult<ResumeDetailViewModel>> UpdateResumeDetailModelNameAsync(string id, [FromBody] string newName)
         {
-            var existingDetail = ResumeDetailModels.FirstOrDefault(rd => rd.Id == id);
+
+            var existingDetail = await _resumeDetailService.GetResumeDetail(id);
+
             if (existingDetail == null)
             {
                 return NotFound();
             }
 
             existingDetail.Name = newName;
-            existingDetail.LastModifyTime = DateTime.UtcNow;
-
+            existingDetail.LastModifyTime = DateTime.UtcNow.ToShortDateString();
+            await _resumeDetailService.Update(existingDetail);
             return Ok(existingDetail);
         }
 
         [HttpPatch("{id}/content")]
-        public ActionResult<ResumeDetailModel> UpdateResumeDetailModelContent(string id, [FromBody] string content)
+        public async Task<ActionResult<ResumeDetailViewModel>> UpdateResumeDetailModelContentAsync(string id, [FromBody] string content)
         {
-            var existingDetail = ResumeDetailModels.FirstOrDefault(rd => rd.Id == id);
+            var existingDetail = await _resumeDetailService.GetResumeDetail(id);
+
             if (existingDetail == null)
             {
                 return NotFound();
             }
 
             existingDetail.Content = content;
-            existingDetail.LastModifyTime = DateTime.UtcNow;
+            existingDetail.LastModifyTime = DateTime.UtcNow.ToShortDateString();
+            await _resumeDetailService.Update(existingDetail);
 
             return Ok(existingDetail);
         }
 
         [HttpPost("copy")]
-        public   async Task<ActionResult<ResumeDetailModel>> CreateResumeDetailModelFromExisting([FromBody] CopyRequest request)
+        public async Task<ActionResult<ResumeDetailViewModel>> CreateResumeDetailModelFromExisting([FromBody] CopyRequest request)
         {
-            var existingDetail = ResumeDetailModels.FirstOrDefault(rd => rd.Id == request.ExistingResumeDetailId);
+            var existingDetail = await _resumeDetailService.GetResumeDetail(request.ExistingResumeDetailId);
             if (existingDetail == null)
             {
                 return NotFound();
             }
 
-            string translatedContent = await _translationService.TranslateAsync(existingDetail.Content,existingDetail.Language, request.Language);
-            // string translatedContent = await _translationService.TranslateAsync(existingDetail.Content,"EN", "JA");
+            string translatedContent = await _translationService.TranslateAsync(existingDetail.Content, existingDetail.Language, request.Language);
 
-            var newDetail = new ResumeDetailModel
+            var newDetail = new ResumeDetailViewModel
             {
                 Id = Guid.NewGuid().ToString(),
                 ResumeId = existingDetail.ResumeId,
@@ -122,24 +127,23 @@ namespace ResumeSpy.UI.Controllers
                 Language = request.Language,
                 Content = translatedContent,
                 IsDefault = false,
-                CreateTime = DateTime.UtcNow,
-                LastModifyTime = DateTime.UtcNow
+                CreateTime = DateTime.UtcNow.ToShortDateString(),
+                LastModifyTime = DateTime.UtcNow.ToShortDateString()
             };
-
-            ResumeDetailModels.Add(newDetail);
-            return CreatedAtAction(nameof(GetResumeDetailModels), new { resumeId = newDetail.ResumeId }, newDetail);
+            var result = await _resumeDetailService.Create(newDetail);
+            return Ok(result);
         }
 
         [HttpDelete("{id}")]
-        public IActionResult DeleteResumeDetailModel(string id)
+        public async Task<IActionResult> DeleteResumeDetailModelAsync(string id)
         {
-            var existingDetail = ResumeDetailModels.FirstOrDefault(rd => rd.Id == id);
+            var existingDetail = await _resumeDetailService.GetResumeDetail(id);
             if (existingDetail == null)
             {
                 return NotFound();
             }
 
-            ResumeDetailModels.Remove(existingDetail);
+            await _resumeDetailService.Delete(existingDetail.Id);
             return NoContent();
         }
     }
