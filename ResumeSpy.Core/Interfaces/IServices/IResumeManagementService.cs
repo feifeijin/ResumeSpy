@@ -19,5 +19,12 @@ namespace ResumeSpy.Core.Interfaces.IServices
         /// <param name="resumeId">The ID of the Resume to clone</param>
         /// <returns>The cloned Resume with new ID</returns>
         Task<ResumeViewModel> CloneResumeAsync(string resumeId);
+
+        /// <summary>
+        /// Sets a ResumeDetail as the default and updates the Resume's image path accordingly.
+        /// </summary>
+        /// <param name="resumeDetailId">The ID of the ResumeDetail to set as default</param>
+        /// <returns>Task representing the operation</returns>
+        Task SetDefaultResumeDetailAsync(string resumeDetailId);
     }
 }

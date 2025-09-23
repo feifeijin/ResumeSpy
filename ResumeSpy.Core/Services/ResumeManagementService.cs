@@ -129,5 +129,44 @@ namespace ResumeSpy.Core.Services
                 throw;
             }
         }
+
+        public async Task SetDefaultResumeDetailAsync(string resumeDetailId)
+        {
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                // Get the ResumeDetail that will become the new default
+                var newDefaultResumeDetail = await _resumeDetailService.GetResumeDetail(resumeDetailId);
+                
+                // Get all ResumeDetails for this Resume to update the old default
+                var allResumeDetails = await _resumeDetailService.GetResumeDetailsByResumeId(newDefaultResumeDetail.ResumeId);
+                
+                // Set all others to non-default
+                foreach (var detail in allResumeDetails.Where(rd => rd.Id != resumeDetailId))
+                {
+                    if (detail.IsDefault)
+                    {
+                        detail.IsDefault = false;
+                        await _resumeDetailService.Update(detail);
+                    }
+                }
+
+                // Set the new default
+                newDefaultResumeDetail.IsDefault = true;
+                await _resumeDetailService.Update(newDefaultResumeDetail);
+
+                // Update the Resume's image path to match the new default ResumeDetail
+                var resume = await _resumeService.GetResume(newDefaultResumeDetail.ResumeId);
+                resume.ResumeImgPath = newDefaultResumeDetail.ResumeImgPath ?? "/assets/default_resume.png";
+                await _resumeService.Update(resume);
+
+                await _unitOfWork.CommitTransactionAsync();
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
+        }
     }
 }

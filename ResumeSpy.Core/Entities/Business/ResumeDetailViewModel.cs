@@ -7,6 +7,7 @@ namespace ResumeSpy.Core.Entities.Business
         public string? Name { get; set; }
         public required string Language { get; set; }
         public required string Content { get; set; }
+        public string? ResumeImgPath { get; set; }
         public bool IsDefault { get; set; }
         public  string? CreateTime { get; set; }
         public  string? LastModifyTime { get; set; }

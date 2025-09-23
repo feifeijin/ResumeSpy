@@ -162,6 +162,21 @@ namespace ResumeSpy.UI.Controllers
             await _resumeDetailService.Delete(existingDetail.Id);
             return NoContent();
         }
+
+        [HttpPatch("{id}/set-default")]
+        public async Task<IActionResult> SetDefaultResumeDetailAsync(string id)
+        {
+            try
+            {
+                await _resumeManagementService.SetDefaultResumeDetailAsync(id);
+                return Ok(new { message = "Successfully set as default and updated resume image path" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while setting ResumeDetail {ResumeDetailId} as default", id);
+                return StatusCode(500, "An error occurred while setting the resume detail as default");
+            }
+        }
     }
 
     public class CopyRequest
