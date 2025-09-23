@@ -35,6 +35,7 @@ namespace ResumeSpy.Core.Services
         {
             var entity = _resumeMapper.MapModel(model);
             entity.EntryDate = DateTime.Now;
+            entity.UpdateDate = DateTime.Now;
             var result = await _resumeRepository.Create(entity);
             await _unitOfWork.SaveChangesAsync();
             return _resumeViewModelMapper.MapModel(result);
