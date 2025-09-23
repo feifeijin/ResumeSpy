@@ -5,7 +5,7 @@ namespace ResumeSpy.Core.Entities.Business
         public required string Id { get; set; }
         public required string ResumeId { get; set; }
         public string? Name { get; set; }
-        public required string Language { get; set; }
+        public string? Language { get; set; }
         public required string Content { get; set; }
         public string? ResumeImgPath { get; set; }
         public bool IsDefault { get; set; }

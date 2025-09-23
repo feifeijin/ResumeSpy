@@ -1,11 +1,9 @@
 using System.Net.Http;
 using System.Threading.Tasks;
-using System.Text.Json;
-using ResumeSpy.UI.Interfaces;
 
-namespace ResumeSpy.UI.Services
+namespace ResumeSpy.Infrastructure.Services.Translation
 {
-    public abstract class BaseTranslator : ITranslator
+    internal abstract class BaseTranslator : ITranslator
     {
         protected readonly HttpClient _httpClient;
         protected readonly string _apiKey;
@@ -19,7 +17,6 @@ namespace ResumeSpy.UI.Services
         }
 
         public abstract Task<string> TranslateAsync(string text, string sourceLanguage, string targetLanguage);
-
 
         public abstract Task<string> DetectLanguageAsync(string text);
     }

@@ -8,6 +8,7 @@ using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.Core.Mapper;
 using ResumeSpy.Core.Services;
 using ResumeSpy.Infrastructure.Repositories;
+using ResumeSpy.Infrastructure.Services.Translation;
 
 namespace ResumeSpy.UI.Extensions
 {
@@ -19,6 +20,9 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IResumeService, ResumeService>();
             services.AddScoped<IResumeDetailService, ResumeDetailService>();
             services.AddScoped<IResumeManagementService, ResumeManagementService>();
+            
+            // Translation Services
+            services.AddScoped<ITranslationService, TranslationService>();
 
             #endregion
 

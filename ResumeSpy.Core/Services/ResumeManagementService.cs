@@ -12,19 +12,34 @@ namespace ResumeSpy.Core.Services
         private readonly IResumeService _resumeService;
         private readonly IResumeDetailService _resumeDetailService;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ITranslationService _translationService;
 
         public ResumeManagementService(
             IResumeService resumeService,
             IResumeDetailService resumeDetailService,
-            IUnitOfWork unitOfWork)
+            IUnitOfWork unitOfWork,
+            ITranslationService translationService)
         {
             _resumeService = resumeService;
             _resumeDetailService = resumeDetailService;
             _unitOfWork = unitOfWork;
+            _translationService = translationService;
         }
 
         public async Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model)
         {
+            // Auto-detect language if it's empty or null
+            if (string.IsNullOrWhiteSpace(model.Language) && !string.IsNullOrWhiteSpace(model.Content))
+            {
+                try
+                {
+                    model.Language = await _translationService.DetectLanguageAsync(model.Content);
+                }
+                catch (Exception)
+                {
+                    model.Language = string.Empty;
+                }
+            }
             // Case 1: Resume exists (ResumeId is provided and not empty and not "undefined")
             if (!string.IsNullOrEmpty(model.ResumeId) && model.ResumeId != "undefined")
             {
@@ -87,7 +102,7 @@ namespace ResumeSpy.Core.Services
             {
                 // Get the original resume
                 var originalResume = await _resumeService.GetResume(resumeId);
-                
+
                 // Create cloned resume
                 var clonedResume = new ResumeViewModel
                 {
@@ -137,10 +152,10 @@ namespace ResumeSpy.Core.Services
             {
                 // Get the ResumeDetail that will become the new default
                 var newDefaultResumeDetail = await _resumeDetailService.GetResumeDetail(resumeDetailId);
-                
+
                 // Get all ResumeDetails for this Resume to update the old default
                 var allResumeDetails = await _resumeDetailService.GetResumeDetailsByResumeId(newDefaultResumeDetail.ResumeId);
-                
+
                 // Set all others to non-default
                 foreach (var detail in allResumeDetails.Where(rd => rd.Id != resumeDetailId))
                 {

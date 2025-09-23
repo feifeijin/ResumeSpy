@@ -1,4 +1,4 @@
-namespace ResumeSpy.UI.Configuration
+namespace ResumeSpy.Infrastructure.Configuration
 {
     public enum TranslatorType
     {

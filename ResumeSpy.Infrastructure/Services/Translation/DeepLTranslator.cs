@@ -3,10 +3,11 @@ using System.Net.Http.Headers;
 using Newtonsoft.Json;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Linq;
 
-namespace ResumeSpy.UI.Services
+namespace ResumeSpy.Infrastructure.Services.Translation
 {
-    public class DeepLTranslator : BaseTranslator
+    internal class DeepLTranslator : BaseTranslator
     {
         public DeepLTranslator(HttpClient httpClient, string apiKey, string endpoint)
             : base(httpClient, apiKey, endpoint)

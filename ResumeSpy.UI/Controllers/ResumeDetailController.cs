@@ -3,7 +3,6 @@ using Microsoft.Extensions.Caching.Memory;
 using ResumeSpy.Core.Entities.Business;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.UI.Models;
-using ResumeSpy.UI.Services;
 
 namespace ResumeSpy.UI.Controllers
 {
@@ -15,14 +14,14 @@ namespace ResumeSpy.UI.Controllers
         private readonly ILogger<ResumeController> _logger;
         private readonly IResumeDetailService _resumeDetailService;
         private readonly IMemoryCache _memoryCache;
-        private readonly TranslationService _translationService;
+        private readonly ITranslationService _translationService;
         private readonly IResumeManagementService _resumeManagementService;
 
         public ResumeDetailController(
             ILogger<ResumeController> logger,
             IResumeDetailService resumeDetailService,
             IMemoryCache memoryCache,
-            TranslationService translationService,
+            ITranslationService translationService,
             IResumeManagementService resumeManagementService)
         {
             _logger = logger;
@@ -133,7 +132,7 @@ namespace ResumeSpy.UI.Controllers
                 return NotFound();
             }
 
-            string translatedContent = await _translationService.TranslateAsync(existingDetail.Content, existingDetail.Language, request.Language);
+            string translatedContent = await _translationService.TranslateTextAsync(existingDetail.Content, existingDetail.Language, request.Language);
 
             var newDetail = new ResumeDetailViewModel
             {

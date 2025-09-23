@@ -1,12 +1,11 @@
 using System;
 using System.Net.Http;
 using Microsoft.Extensions.Options;
-using ResumeSpy.UI.Configuration;
-using ResumeSpy.UI.Interfaces;
+using ResumeSpy.Infrastructure.Configuration;
 
-namespace ResumeSpy.UI.Services
+namespace ResumeSpy.Infrastructure.Services.Translation
 {
-    public class TranslatorFactory
+    internal class TranslatorFactory
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly TranslatorSettings _translatorSettings;

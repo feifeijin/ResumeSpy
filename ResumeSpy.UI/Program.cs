@@ -2,9 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ResumeSpy.Infrastructure.Data;
 using ResumeSpy.UI.Extensions;
 using ResumeSpy.UI.Middlewares;
-using ResumeSpy.UI.Interfaces;
-using ResumeSpy.UI.Services;
-using ResumeSpy.UI.Configuration;
+using ResumeSpy.Infrastructure.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,18 +28,6 @@ builder.Services.AddLogging();
 
 // Load translator settings from configuration
 builder.Services.Configure<TranslatorSettings>(builder.Configuration.GetSection("TranslatorSettings"));
-
-// Register the factory
-builder.Services.AddSingleton<TranslatorFactory>();
-
-// Register the translator service using the factory
-builder.Services.AddScoped<ITranslator>(provider =>
-{
-    var factory = provider.GetRequiredService<TranslatorFactory>();
-    return factory.CreateTranslator();
-});
-
-builder.Services.AddScoped<TranslationService>();
 
 // Add CORS services
 builder.Services.AddCors(options =>

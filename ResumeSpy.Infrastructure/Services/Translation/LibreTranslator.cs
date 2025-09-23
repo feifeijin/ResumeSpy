@@ -1,10 +1,11 @@
 using System.Net.Http;
 using System.Text.Json;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
-namespace ResumeSpy.UI.Services
+namespace ResumeSpy.Infrastructure.Services.Translation
 {
-    public class LibreTranslator : BaseTranslator
+    internal class LibreTranslator : BaseTranslator
     {
         public LibreTranslator(HttpClient httpClient, string apiKey, string endpoint)
             : base(httpClient, apiKey, endpoint)

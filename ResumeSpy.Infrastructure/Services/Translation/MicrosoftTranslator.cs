@@ -4,9 +4,9 @@ using System.Text.Json;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace ResumeSpy.UI.Services
+namespace ResumeSpy.Infrastructure.Services.Translation
 {
-    public class MicrosoftTranslator : BaseTranslator
+    internal class MicrosoftTranslator : BaseTranslator
     {
         public MicrosoftTranslator(HttpClient httpClient, string apiKey, string endpoint)
             : base(httpClient, apiKey, endpoint)
