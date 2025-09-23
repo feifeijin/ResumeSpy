@@ -6,7 +6,6 @@ namespace ResumeSpy.Core.Entities.Business
         public string? Title { get; set; }
         public int ResumeDetailCount { get; set; }
         public string? ResumeImgPath { get; set; }
-
         public string? EntryDate { get; set; }
         public string? UpdateDate { get; set; }
     }
