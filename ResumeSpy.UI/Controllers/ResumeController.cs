@@ -13,12 +13,18 @@ namespace ResumeSpy.UI.Controllers
     {
         private readonly ILogger<ResumeController> _logger;
         private readonly IResumeService _resumeService;
+        private readonly IResumeManagementService _resumeManagementService;
         private readonly IMemoryCache _memoryCache;
 
-        public ResumeController(ILogger<ResumeController> logger, IResumeService resumeService, IMemoryCache memoryCache)
+        public ResumeController(
+            ILogger<ResumeController> logger, 
+            IResumeService resumeService, 
+            IResumeManagementService resumeManagementService,
+            IMemoryCache memoryCache)
         {
             _logger = logger;
             _resumeService = resumeService;
+            _resumeManagementService = resumeManagementService;
             _memoryCache = memoryCache;
         }
 
@@ -98,22 +104,13 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
-                var existingResume = await _resumeService.GetResume(id);
-                
-                var clonedResume = new ResumeViewModel
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Title = existingResume.Title + " (Copy)",
-                    ResumeDetailCount = existingResume.ResumeDetailCount,
-                    ResumeImgPath = existingResume.ResumeImgPath
-                };
-
-                var createdResume = await _resumeService.Create(clonedResume);
-                return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
+                var clonedResume = await _resumeManagementService.CloneResumeAsync(id);
+                return CreatedAtAction(nameof(GetResume), new { id = clonedResume.Id }, clonedResume);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return NotFound();
+                _logger.LogError(ex, "Error occurred while cloning resume with ID: {ResumeId}", id);
+                return StatusCode(500, "An error occurred while cloning the resume");
             }
         }
 

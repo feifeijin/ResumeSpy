@@ -79,5 +79,55 @@ namespace ResumeSpy.Core.Services
                 throw;
             }
         }
+
+        public async Task<ResumeViewModel> CloneResumeAsync(string resumeId)
+        {
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                // Get the original resume
+                var originalResume = await _resumeService.GetResume(resumeId);
+                
+                // Create cloned resume
+                var clonedResume = new ResumeViewModel
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Title = originalResume.Title + " (Copy)",
+                    ResumeDetailCount = originalResume.ResumeDetailCount,
+                    ResumeImgPath = originalResume.ResumeImgPath
+                };
+
+                // Create the cloned resume (this will call SaveChanges, but within our transaction)
+                var createdResume = await _resumeService.Create(clonedResume);
+
+                // Get all ResumeDetails from the original resume
+                var originalResumeDetails = await _resumeDetailService.GetResumeDetailsByResumeId(resumeId);
+
+                // Clone each ResumeDetail and associate with the new resume
+                foreach (var originalDetail in originalResumeDetails)
+                {
+                    var clonedDetail = new ResumeDetailViewModel
+                    {
+                        Id = Guid.NewGuid().ToString(), // New unique ID for cloned detail
+                        ResumeId = createdResume.Id,    // Associate with new resume
+                        Name = originalDetail.Name,
+                        Language = originalDetail.Language,
+                        Content = originalDetail.Content
+                    };
+
+                    // Create the cloned detail (this will call SaveChanges, but within our transaction)
+                    await _resumeDetailService.Create(clonedDetail);
+                }
+
+                // Commit the transaction - all individual SaveChanges calls are part of this transaction
+                await _unitOfWork.CommitTransactionAsync();
+                return createdResume;
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
+        }
     }
 }
