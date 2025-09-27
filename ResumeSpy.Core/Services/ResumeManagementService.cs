@@ -13,17 +13,20 @@ namespace ResumeSpy.Core.Services
         private readonly IResumeDetailService _resumeDetailService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ITranslationService _translationService;
+        private readonly IImageGenerationService _imageGenerationService;
 
         public ResumeManagementService(
             IResumeService resumeService,
             IResumeDetailService resumeDetailService,
             IUnitOfWork unitOfWork,
-            ITranslationService translationService)
+            ITranslationService translationService,
+            IImageGenerationService imageGenerationService)
         {
             _resumeService = resumeService;
             _resumeDetailService = resumeDetailService;
             _unitOfWork = unitOfWork;
             _translationService = translationService;
+            _imageGenerationService = imageGenerationService;
         }
 
         public async Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model)
@@ -57,6 +60,12 @@ namespace ResumeSpy.Core.Services
             var existingDetails = (await _resumeDetailService.GetResumeDetailsByResumeId(model.ResumeId)).ToList();
             model.Id = (existingDetails.Count + 1).ToString();
 
+            // Generate thumbnail
+            if (!string.IsNullOrWhiteSpace(model.Content))
+            {
+                model.ResumeImgPath = await _imageGenerationService.GenerateThumbnailAsync(model.Content, $"{model.ResumeId}_{model.Id}");
+            }
+
             var result = await _resumeDetailService.Create(model);
             await _unitOfWork.SaveChangesAsync(); // Save immediately for single operation
             return result;
@@ -67,20 +76,29 @@ namespace ResumeSpy.Core.Services
             await _unitOfWork.BeginTransactionAsync();
             try
             {
+                var newResumeId = Guid.NewGuid().ToString();
+                var newResumeDetailId = Guid.NewGuid().ToString();
+
+                // Generate thumbnail before creating entities
+                if (!string.IsNullOrWhiteSpace(model.Content))
+                {
+                    model.ResumeImgPath = await _imageGenerationService.GenerateThumbnailAsync(model.Content, $"{newResumeId}_{newResumeDetailId}");
+                }
+
                 // Create new Resume first
                 var newResume = new ResumeViewModel
                 {
-                    Id = Guid.NewGuid().ToString(),
+                    Id = newResumeId,
                     Title = model.Name ?? "New Resume",
                     ResumeDetailCount = 1,
-                    ResumeImgPath = "/assets/default_resume.png"
+                    ResumeImgPath = model.ResumeImgPath ?? "/assets/default_resume.png"
                 };
 
                 var createdResume = await _resumeService.Create(newResume);
 
                 // Now create ResumeDetail with the new Resume ID
                 model.ResumeId = createdResume.Id;
-                model.Id = Guid.NewGuid().ToString();
+                model.Id = newResumeDetailId;
                 var result = await _resumeDetailService.Create(model);
 
                 // Save all changes within the transaction
@@ -121,13 +139,24 @@ namespace ResumeSpy.Core.Services
                 // Clone each ResumeDetail and associate with the new resume
                 foreach (var originalDetail in originalResumeDetails)
                 {
+                    var newDetailId = Guid.NewGuid().ToString();
+                    var imagePath = originalDetail.ResumeImgPath;
+
+                    // If there's content, generate a new thumbnail for the cloned detail
+                    if (!string.IsNullOrWhiteSpace(originalDetail.Content))
+                    {
+                        imagePath = await _imageGenerationService.GenerateThumbnailAsync(originalDetail.Content, $"{createdResume.Id}_{newDetailId}");
+                    }
+
                     var clonedDetail = new ResumeDetailViewModel
                     {
-                        Id = Guid.NewGuid().ToString(), // New unique ID for cloned detail
+                        Id = newDetailId,
                         ResumeId = createdResume.Id,    // Associate with new resume
                         Name = originalDetail.Name,
                         Language = originalDetail.Language,
-                        Content = originalDetail.Content
+                        Content = originalDetail.Content,
+                        ResumeImgPath = imagePath,
+                        IsDefault = originalDetail.IsDefault
                     };
 
                     // Create the cloned detail (this will call SaveChanges, but within our transaction)

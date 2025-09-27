@@ -13,17 +13,20 @@ namespace ResumeSpy.Core.Services
         private readonly IBaseMapper<ResumeDetailViewModel, ResumeDetail> _resumeDetailMapper;
         private readonly IResumeDetailRepository _resumeDetailRepository;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IImageGenerationService _imageGenerationService;
         
         public ResumeDetailService(
             IBaseMapper<ResumeDetail, ResumeDetailViewModel> resumeDetailViewModelMapper,
             IBaseMapper<ResumeDetailViewModel, ResumeDetail> resumeDetailMapper,
             IResumeDetailRepository resumeDetailRepository,
-            IUnitOfWork unitOfWork)
+            IUnitOfWork unitOfWork,
+            IImageGenerationService imageGenerationService)
         {
             _resumeDetailViewModelMapper = resumeDetailViewModelMapper;
             _resumeDetailMapper = resumeDetailMapper;
             _resumeDetailRepository = resumeDetailRepository;
             _unitOfWork = unitOfWork;
+            _imageGenerationService = imageGenerationService;
         }
         public async Task<ResumeDetailViewModel> Create(ResumeDetailViewModel model)
         {
@@ -91,6 +94,17 @@ namespace ResumeSpy.Core.Services
             {
                 throw new NotFoundException($"ResumeDetail with id {model.Id} not found.");
             }
+
+            // Regenerate thumbnail if content has changed
+            if (existingData.Content != model.Content && !string.IsNullOrWhiteSpace(model.Content))
+            {
+                existingData.ResumeImgPath = await _imageGenerationService.GenerateThumbnailAsync(model.Content, $"{model.ResumeId}_{model.Id}");
+            }
+            else if (string.IsNullOrWhiteSpace(model.Content))
+            {
+                existingData.ResumeImgPath = null; // Or a default placeholder path
+            }
+
             existingData.Content = model.Content;
             existingData.Name = model.Name;
             existingData.UpdateDate = DateTime.Now;

@@ -2,3 +2,6 @@
 ResumeSpy.UI/appsettings.Development.json
 **/bin
 **/obj
+
+# Ignore generated images
+ResumeSpy.UI/wwwroot/images/

@@ -56,6 +56,7 @@ if (app.Environment.IsDevelopment())
 // Use the CORS middleware BEFORE other middleware
 app.UseCors("AllowSpecificOrigin");
 
+app.UseStaticFiles(); // Serve static files from wwwroot
 app.UseHttpsRedirection();
 app.UseAuthorization();
 
