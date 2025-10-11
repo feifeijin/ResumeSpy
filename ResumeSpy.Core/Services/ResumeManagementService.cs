@@ -182,17 +182,15 @@ namespace ResumeSpy.Core.Services
                 // Get the ResumeDetail that will become the new default
                 var newDefaultResumeDetail = await _resumeDetailService.GetResumeDetail(resumeDetailId);
 
-                // Get all ResumeDetails for this Resume to update the old default
-                var allResumeDetails = await _resumeDetailService.GetResumeDetailsByResumeId(newDefaultResumeDetail.ResumeId);
+                // Find the current default detail for this resume (if one exists)
+                var allResumeDetails = (await _resumeDetailService.GetResumeDetailsByResumeId(newDefaultResumeDetail.ResumeId)).ToList();
+                var currentDefaultDetail = allResumeDetails.FirstOrDefault(d => d.IsDefault && d.Id != resumeDetailId);
 
-                // Set all others to non-default
-                foreach (var detail in allResumeDetails.Where(rd => rd.Id != resumeDetailId))
+                // If there is a different default detail, unset it
+                if (currentDefaultDetail != null)
                 {
-                    if (detail.IsDefault)
-                    {
-                        detail.IsDefault = false;
-                        await _resumeDetailService.Update(detail);
-                    }
+                    currentDefaultDetail.IsDefault = false;
+                    await _resumeDetailService.Update(currentDefaultDetail);
                 }
 
                 // Set the new default
@@ -204,6 +202,36 @@ namespace ResumeSpy.Core.Services
                 resume.ResumeImgPath = newDefaultResumeDetail.ResumeImgPath ?? "/assets/default_resume.png";
                 await _resumeService.Update(resume);
 
+                await _unitOfWork.CommitTransactionAsync();
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
+        }
+
+        public async Task UpdateResumeDetailModelContentAsync(ResumeDetailViewModel model)
+        {
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                // 1. Update the ResumeDetail. This will also regenerate the thumbnail if content changed.
+                
+                await _resumeDetailService.Update(model);
+
+                // 2. If this is the default detail, update the parent Resume's image path.
+                if (model.IsDefault)
+                {
+                    var resume = await _resumeService.GetResume(model.ResumeId);
+                    if (resume != null)
+                    {
+                        resume.ResumeImgPath = model.ResumeImgPath ?? "/assets/default_resume.png";
+                        await _resumeService.Update(resume);
+                    }
+                }
+
+                // 3. Commit the transaction.
                 await _unitOfWork.CommitTransactionAsync();
             }
             catch

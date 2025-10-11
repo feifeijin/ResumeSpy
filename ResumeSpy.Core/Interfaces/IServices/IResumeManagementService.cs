@@ -26,5 +26,12 @@ namespace ResumeSpy.Core.Interfaces.IServices
         /// <param name="resumeDetailId">The ID of the ResumeDetail to set as default</param>
         /// <returns>Task representing the operation</returns>
         Task SetDefaultResumeDetailAsync(string resumeDetailId);
+
+        /// <summary>
+        /// Updates the content of a ResumeDetail and, if it's the default, also updates the parent Resume's image path.
+        /// </summary>
+        /// <param name="model">The ResumeDetailViewModel with updated content.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        Task UpdateResumeDetailModelContentAsync(ResumeDetailViewModel model);
     }
 }

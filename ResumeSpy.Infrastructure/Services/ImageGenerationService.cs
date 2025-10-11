@@ -107,5 +107,34 @@ namespace ResumeSpy.Infrastructure.Services
                 return $"/{ImageDirectory}/{fileName}";
             }
         }
+
+        public Task DeleteThumbnailAsync(string? imagePath)
+        {
+            if (string.IsNullOrEmpty(imagePath))
+            {
+                return Task.CompletedTask;
+            }
+
+            try
+            {
+                // Construct the full physical path from the relative web path
+                var contentRootPath = _hostEnvironment.ContentRootPath;
+                var webRootPath = Path.Combine(contentRootPath, "wwwroot");
+                // Remove the leading slash from the imagePath to correctly combine paths
+                var physicalPath = Path.Combine(webRootPath, imagePath.TrimStart('/'));
+
+                if (File.Exists(physicalPath))
+                {
+                    File.Delete(physicalPath);
+                }
+            }
+            catch (Exception)
+            {
+                // Log the exception in a real application
+                // For now, we'll just ignore it to prevent crashing the operation
+            }
+
+            return Task.CompletedTask;
+        }
     }
 }

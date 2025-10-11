@@ -14,5 +14,12 @@ namespace ResumeSpy.Core.Interfaces.IServices
         /// <param name="uniqueIdentifier">A unique identifier to use for the filename to prevent collisions.</param>
         /// <returns>The relative path to the saved image (e.g., /images/resumes/my-image.png).</returns>
         Task<string> GenerateThumbnailAsync(string text, string uniqueIdentifier);
+
+        /// <summary>
+        /// Deletes a thumbnail image from the file system.
+        /// </summary>
+        /// <param name="imagePath">The relative path of the image to delete.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        Task DeleteThumbnailAsync(string? imagePath);
     }
 }

@@ -44,17 +44,10 @@ namespace ResumeSpy.Core.Services
             {
                 throw new NotFoundException($"ResumeDetail with id {id} not found.");
             }
+            await _imageGenerationService.DeleteThumbnailAsync(entity.ResumeImgPath);
             await _resumeDetailRepository.Delete(entity);
             await _unitOfWork.SaveChangesAsync();
         } 
-
-        public async Task<PaginatedDataViewModel<ResumeDetailViewModel>> GetPaginatedResumeDetails(int pageNumber, int pageSize)
-        {
-            var paginatedData = await _resumeDetailRepository.GetPaginatedData(pageNumber, pageSize);
-            var mappedData= _resumeDetailViewModelMapper.MapList(paginatedData.Data);
-            var PaginatedDataViewModel = new PaginatedDataViewModel<ResumeDetailViewModel>(mappedData.ToList(), paginatedData.TotalCount);
-            return PaginatedDataViewModel;
-        }
 
         public async Task<ResumeDetailViewModel> GetResumeDetail(string id)
         {
@@ -98,6 +91,7 @@ namespace ResumeSpy.Core.Services
             // Regenerate thumbnail if content has changed
             if (existingData.Content != model.Content && !string.IsNullOrWhiteSpace(model.Content))
             {
+                await _imageGenerationService.DeleteThumbnailAsync(existingData.ResumeImgPath);
                 existingData.ResumeImgPath = await _imageGenerationService.GenerateThumbnailAsync(model.Content, $"{model.ResumeId}_{model.Id}");
             }
             else if (string.IsNullOrWhiteSpace(model.Content))

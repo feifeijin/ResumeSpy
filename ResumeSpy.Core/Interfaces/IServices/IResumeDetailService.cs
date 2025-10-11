@@ -11,7 +11,6 @@ namespace ResumeSpy.Core.Interfaces.IServices
     public interface IResumeDetailService
     {
         Task<IEnumerable<ResumeDetailViewModel>> GetResumeDetailsByResumeId(string resumeId);
-        Task<PaginatedDataViewModel<ResumeDetailViewModel>> GetPaginatedResumeDetails(int pageNumber, int pageSize);
         Task<ResumeDetailViewModel> GetResumeDetail(string id);
         Task<bool> IsExists(string key, string value);
         Task<bool> IsExistsForUpdate(string id, string key, string value);

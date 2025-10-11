@@ -84,7 +84,7 @@ namespace ResumeSpy.UI.Controllers
             existingDetail.Content = updatedDetail.Content;
             existingDetail.IsDefault = updatedDetail.IsDefault;
             existingDetail.LastModifyTime = DateTime.UtcNow.ToShortDateString();
-            await _resumeDetailService.Update(existingDetail);
+            await _resumeManagementService.UpdateResumeDetailModelContentAsync(existingDetail);
 
             return Ok(existingDetail);
         }
@@ -118,7 +118,7 @@ namespace ResumeSpy.UI.Controllers
 
             existingDetail.Content = content;
             existingDetail.LastModifyTime = DateTime.UtcNow.ToShortDateString();
-            await _resumeDetailService.Update(existingDetail);
+            await _resumeManagementService.UpdateResumeDetailModelContentAsync(existingDetail);
 
             return Ok(existingDetail);
         }
