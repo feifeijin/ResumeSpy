@@ -217,8 +217,10 @@ namespace ResumeSpy.Core.Services
             try
             {
                 // 1. Update the ResumeDetail. This will also regenerate the thumbnail if content changed.
-                
+
                 await _resumeDetailService.Update(model);
+
+                var updatedResumeDetail = await _resumeDetailService.GetResumeDetail(model.Id);
 
                 // 2. If this is the default detail, update the parent Resume's image path.
                 if (model.IsDefault)
@@ -226,7 +228,7 @@ namespace ResumeSpy.Core.Services
                     var resume = await _resumeService.GetResume(model.ResumeId);
                     if (resume != null)
                     {
-                        resume.ResumeImgPath = model.ResumeImgPath ?? "/assets/default_resume.png";
+                        resume.ResumeImgPath = updatedResumeDetail.ResumeImgPath ?? "/assets/default_resume.png";
                         await _resumeService.Update(resume);
                     }
                 }
