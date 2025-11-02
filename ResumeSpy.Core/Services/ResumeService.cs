@@ -54,7 +54,10 @@ namespace ResumeSpy.Core.Services
 
         public  async Task<PaginatedDataViewModel<ResumeViewModel>> GetPaginatedResumes(int pageNumber, int pageSize)
         {
-            var paginatedData = await _resumeRepository.GetPaginatedData(pageNumber, pageSize);
+            var paginatedData = await _resumeRepository.GetPaginatedData(
+                pageNumber,
+                pageSize,
+                query => query.OrderByDescending(resume => resume.EntryDate));
 
             var mappedData= _resumeViewModelMapper.MapList(paginatedData.Data);
 

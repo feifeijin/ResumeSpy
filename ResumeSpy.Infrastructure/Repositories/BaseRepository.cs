@@ -3,6 +3,7 @@ using ResumeSpy.Core.Entities.Business;
 using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.IRepositories;
 using ResumeSpy.Infrastructure.Data;
+using System.Linq;
 using System.Linq.Expressions;
 
 namespace ResumeSpy.Infrastructure.Repositories
@@ -23,15 +24,34 @@ namespace ResumeSpy.Infrastructure.Repositories
             return await _dbContext.Set<T>().AsNoTracking().ToListAsync();
         }
        
-        public async Task<PaginatedDataViewModel<T>> GetPaginatedData(int pageNumber, int pageSize)
+        public async Task<PaginatedDataViewModel<T>> GetPaginatedData(
+            int pageNumber,
+            int pageSize,
+            Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null)
         {
-            var query = _dbContext.Set<T>()
+            if (pageNumber < 1)
+            {
+                pageNumber = 1;
+            }
+
+            if (pageSize < 1)
+            {
+                pageSize = 10;
+            }
+
+            var query = _dbContext.Set<T>().AsNoTracking();
+
+            var totalCount = await query.CountAsync();
+
+            if (orderBy is not null)
+            {
+                query = orderBy(query);
+            }
+
+            var data = await query
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
-                .AsNoTracking();
-
-            var data = await query.ToListAsync();
-            var totalCount = await _dbContext.Set<T>().CountAsync();
+                .ToListAsync();
 
             return new PaginatedDataViewModel<T>(data, totalCount);
         }

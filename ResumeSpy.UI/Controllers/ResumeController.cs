@@ -31,13 +31,8 @@ namespace ResumeSpy.UI.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ResumeViewModel>>> GetResumes()
         {
-            int page = 1;
-            int pageSize = 100;
-
-            var resumes = await _resumeService.GetPaginatedResumes(page, pageSize);
-            var pagedResumes = new StaticPagedList<ResumeViewModel>(resumes.Data, page, pageSize, resumes.TotalCount);
-
-            return Ok(pagedResumes);
+            var resumes = (await _resumeService.GetResumes()).ToList().OrderByDescending(r => r.EntryDate);
+            return Ok(resumes);
         }
 
         [HttpGet("{id}")]

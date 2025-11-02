@@ -59,7 +59,7 @@ namespace ResumeSpy.UI.Controllers
             {
                 resumeDetailModel.CreateTime = DateTime.UtcNow.ToShortDateString();
                 resumeDetailModel.LastModifyTime = DateTime.UtcNow.ToShortDateString();
-                
+
                 var result = await _resumeManagementService.CreateResumeDetailAsync(resumeDetailModel);
                 return Ok(result);
             }
@@ -174,6 +174,44 @@ namespace ResumeSpy.UI.Controllers
             {
                 _logger.LogError(ex, "Error occurred while setting ResumeDetail {ResumeDetailId} as default", id);
                 return StatusCode(500, "An error occurred while setting the resume detail as default");
+            }
+        }
+
+        [HttpPost("{id}/sync-translations")]
+        public async Task<IActionResult> SyncResumeDetailTranslationsAsync(string id)
+        {
+            try
+            {
+                var currentResumeDetail = await _resumeDetailService.GetResumeDetail(id);
+                var allDetails = await _resumeDetailService.GetResumeDetailsByResumeId(currentResumeDetail.ResumeId);
+                if (currentResumeDetail == null)
+                {
+                    return NotFound();
+                }
+                else if (allDetails == null || allDetails.Count() == 0)
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    foreach (var detail in allDetails)
+                    {
+                        if (!string.IsNullOrWhiteSpace(detail.Language) && detail.Id != currentResumeDetail.Id)
+                        {
+                            string translatedContent = await _translationService.TranslateTextAsync(currentResumeDetail.Content, currentResumeDetail.Language ?? "", detail.Language);
+                            detail.Content = translatedContent;
+                            detail.LastModifyTime = DateTime.UtcNow.ToShortDateString();
+                            await _resumeDetailService.Update(detail);
+                        }
+                    }
+                }
+
+                return Ok(new { message = "Successfully synchronized translations for resume details" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while synchronizing resume detail translations");
+                return StatusCode(500, "An error occurred while synchronizing resume detail translations");
             }
         }
     }
