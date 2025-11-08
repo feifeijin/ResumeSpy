@@ -28,8 +28,8 @@ namespace ResumeSpy.Infrastructure.Services.AI
             _apiToken = configuration["AI:HuggingFace:ApiToken"] 
                 ?? throw new InvalidOperationException("HuggingFace API token not configured");
             
-            _defaultModel = configuration["AI:HuggingFace:DefaultModel"] ?? "microsoft/DialoGPT-medium";
-            _endpoint = configuration["AI:HuggingFace:Endpoint"] ?? "https://api-inference.huggingface.co/models";
+                        _defaultModel = configuration["AI:HuggingFace:DefaultModel"] ?? "meta-llama/Llama-3.1-8B-Instruct:novita";
+            _endpoint = configuration["AI:HuggingFace:Endpoint"] ?? "https://router.huggingface.co/v1/chat/completions";
 
             // Set authorization header
             _httpClient.DefaultRequestHeaders.Authorization = 
@@ -43,60 +43,47 @@ namespace ResumeSpy.Infrastructure.Services.AI
 
             try
             {
-                // Combine system message and prompt
-                var prompt = !string.IsNullOrWhiteSpace(request.SystemMessage) 
-                    ? $"System: {request.SystemMessage}\n\nUser: {request.Prompt}\n\nAssistant:"
-                    : request.Prompt;
-
-                // For text generation models, we use a simple input format
+                // Create OpenAI-compatible chat completion payload
                 var payload = new
                 {
-                    inputs = prompt,
-                    parameters = new
-                    {
-                        max_new_tokens = request.MaxTokens,
-                        temperature = request.Temperature,
-                        return_full_text = false,
-                        do_sample = true
-                    },
-                    options = new
-                    {
-                        wait_for_model = true
-                    }
+                    model = modelToUse,
+                    messages = CreateMessages(request),
+                    max_tokens = request.MaxTokens,
+                    temperature = request.Temperature,
+                    stream = false
                 };
 
                 var json = JsonSerializer.Serialize(payload);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var content = new StringContent(json, Encoding.UTF8, System.Net.Mime.MediaTypeNames.Application.Json);
 
-                var response = await _httpClient.PostAsync($"{_endpoint}/{modelToUse}", content);
+                var response = await _httpClient.PostAsync(_endpoint, content);
                 
-                // Handle rate limiting
+                // Handle rate limiting and model loading
                 if (response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable ||
                     response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
                     var retryAfter = response.Headers.RetryAfter?.Delta?.TotalSeconds ?? 20;
-                    _logger.LogWarning("HuggingFace rate limited, waiting {Seconds} seconds", retryAfter);
+                    _logger.LogWarning("HuggingFace rate limited or model loading, waiting {Seconds} seconds", retryAfter);
                     await Task.Delay(TimeSpan.FromSeconds(Math.Min(retryAfter, 60))); // Cap at 60 seconds
                     
-                    response = await _httpClient.PostAsync($"{_endpoint}/{modelToUse}", content);
+                    response = await _httpClient.PostAsync(_endpoint, content);
                 }
 
                 response.EnsureSuccessStatusCode();
 
                 var responseContent = await response.Content.ReadAsStringAsync();
+                var chatCompletion = JsonSerializer.Deserialize<ChatCompletionResponse>(responseContent);
                 
-                // Parse response - HF returns array of results
-                var results = JsonSerializer.Deserialize<HuggingFaceResponse[]>(responseContent);
-                var generatedText = results?[0]?.GeneratedText ?? "";
+                var generatedText = chatCompletion?.Choices?[0]?.Message?.Content ?? "";
 
                 stopwatch.Stop();
 
-                // Estimate token usage (rough approximation)
-                var promptTokens = EstimateTokenCount(prompt);
-                var completionTokens = EstimateTokenCount(generatedText);
+                // Get token usage from response
+                var promptTokens = chatCompletion?.Usage?.PromptTokens ?? EstimateTokenCount(GetPromptText(request));
+                var completionTokens = chatCompletion?.Usage?.CompletionTokens ?? EstimateTokenCount(generatedText);
 
                 _logger.LogInformation(
-                    "HuggingFace request completed. Model: {Model}, Estimated Tokens: {TotalTokens} ({InputTokens} in + {OutputTokens} out), Cost: Free, Latency: {Latency}ms",
+                    "HuggingFace request completed. Model: {Model}, Tokens: {TotalTokens} ({InputTokens} in + {OutputTokens} out), Cost: Free, Latency: {Latency}ms",
                     modelToUse, promptTokens + completionTokens, promptTokens, completionTokens, stopwatch.ElapsedMilliseconds);
 
                 return new AIResponse
@@ -127,15 +114,57 @@ namespace ResumeSpy.Infrastructure.Services.AI
             }
         }
 
+        private object[] CreateMessages(AIRequest request)
+        {
+            var messages = new List<object>();
+
+            // Add system message if provided
+            if (!string.IsNullOrWhiteSpace(request.SystemMessage))
+            {
+                messages.Add(new { role = "system", content = request.SystemMessage });
+            }
+
+            // Add user message
+            messages.Add(new { role = "user", content = request.Prompt });
+
+            return messages.ToArray();
+        }
+
+        private string GetPromptText(AIRequest request)
+        {
+            return !string.IsNullOrWhiteSpace(request.SystemMessage) 
+                ? $"System: {request.SystemMessage}\n\nUser: {request.Prompt}"
+                : request.Prompt;
+        }
+
         private static int EstimateTokenCount(string text)
         {
             // Rough estimation: ~4 characters per token for English text
             return Math.Max(1, text.Length / 4);
         }
 
-        private class HuggingFaceResponse
+        // DTOs for OpenAI-compatible chat completions API
+        private class ChatCompletionResponse
         {
-            public string GeneratedText { get; set; } = string.Empty;
+            public Choice[]? Choices { get; set; }
+            public Usage? Usage { get; set; }
+        }
+
+        private class Choice
+        {
+            public Message? Message { get; set; }
+        }
+
+        private class Message
+        {
+            public string? Content { get; set; }
+        }
+
+        private class Usage
+        {
+            public int PromptTokens { get; set; }
+            public int CompletionTokens { get; set; }
+            public int TotalTokens { get; set; }
         }
     }
 }
