@@ -2,11 +2,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using ResumeSpy.Core.Entities.Business;
 using ResumeSpy.Core.Entities.General;
+using ResumeSpy.Core.Interfaces.AI;
 using ResumeSpy.Core.Interfaces.IMapper;
 using ResumeSpy.Core.Interfaces.IRepositories;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.Core.Mapper;
 using ResumeSpy.Core.Services;
+using ResumeSpy.Infrastructure.AI;
 using ResumeSpy.Infrastructure.Repositories;
 using ResumeSpy.Infrastructure.Services;
 using ResumeSpy.Infrastructure.Services.Translation;
@@ -26,6 +28,15 @@ namespace ResumeSpy.UI.Extensions
             // Translation Services
             services.AddScoped<ITranslationService, TranslationService>();
 
+            #endregion
+
+            #region AI Services
+            // Register AI providers with keyed services
+            services.AddKeyedSingleton<IGenerativeTextService, OpenAITextService>("OpenAI");
+            
+            // Register the AI Orchestrator
+            services.AddScoped<AIOrchestratorService>();
+            
             #endregion
 
             #region Repositories
