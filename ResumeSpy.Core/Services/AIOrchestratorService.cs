@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ResumeSpy.Core.AI;
 using ResumeSpy.Core.Interfaces.AI;
@@ -40,15 +41,18 @@ namespace ResumeSpy.Core.Services
             var cacheKey = useCache ? GenerateCacheKey(request) : null;
 
             // Check cache
-            if (cacheKey != null && _cache.TryGetValue(cacheKey, out AIResponse? cachedResponse))
+            if (cacheKey != null && _cache.TryGetValue<AIResponse>(cacheKey, out var cachedResponse) && cachedResponse != null)
             {
                 _logger.LogInformation("Cache hit for request");
-                return cachedResponse!;
+                return cachedResponse;
             }
 
             // Get provider fallback chain from configuration
-            var providers = _configuration.GetSection("AI:TextProviderFallbackChain").Get<string[]>()
-                ?? new[] { "OpenAI" };
+            // var providers = _configuration.GetSection("AI:TextProviderFallbackChain").Value.Split(',')
+            //     ?? new[] { "OpenAI" };
+
+            var providers = _configuration.GetSection("AI:TextProviderFallbackChain").Value?.Split(',')
+            ?? new[] { "OpenAI" };
 
             AIResponse? response = null;
             Exception? lastException = null;
@@ -60,7 +64,7 @@ namespace ResumeSpy.Core.Services
                     _logger.LogInformation("Attempting provider: {Provider}", providerName);
 
                     var service = _serviceProvider.GetKeyedService<IGenerativeTextService>(providerName);
-                    
+
                     if (service == null)
                     {
                         _logger.LogWarning("Provider {Provider} is not registered", providerName);
@@ -72,13 +76,14 @@ namespace ResumeSpy.Core.Services
                     if (response.IsSuccess)
                     {
                         _logger.LogInformation("Request succeeded with provider: {Provider}", providerName);
-                        
+
                         // Cache successful response
                         if (cacheKey != null)
                         {
                             var cacheExpiration = TimeSpan.FromMinutes(
-                                _configuration.GetValue<int>("AI:CacheExpirationMinutes", 60));
-                            
+                                _configuration.GetSection("AI:CacheExpirationMinutes").Value != null ?
+                                int.Parse(_configuration.GetSection("AI:CacheExpirationMinutes").Value) : 60);
+
                             _cache.Set(cacheKey, response, cacheExpiration);
                         }
 
@@ -96,7 +101,7 @@ namespace ResumeSpy.Core.Services
 
             // All providers failed
             _logger.LogError("All providers failed for text generation request");
-            
+
             return response ?? new AIResponse
             {
                 IsSuccess = false,
@@ -113,11 +118,11 @@ namespace ResumeSpy.Core.Services
             // Get the default text provider
             var providerName = _configuration["AI:DefaultTextProvider"] ?? "OpenAI";
             var textService = _serviceProvider.GetRequiredKeyedService<IGenerativeTextService>(providerName);
-            
+
             // Create translation service with the selected provider
-            return new AITranslationService(
-                textService,
-                _serviceProvider.GetRequiredService<ILogger<AITranslationService>>());
+            var loggerFactory = _serviceProvider.GetRequiredService<ILoggerFactory>();
+            return new Infrastructure.AI.AITranslationService(
+                textService);
         }
 
         /// <summary>
@@ -136,7 +141,7 @@ namespace ResumeSpy.Core.Services
 
             var json = JsonSerializer.Serialize(keyData);
             var hash = SHA256.HashData(Encoding.UTF8.GetBytes(json));
-            
+
             return $"ai_cache_{Convert.ToHexString(hash)}";
         }
     }
