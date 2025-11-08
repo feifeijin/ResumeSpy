@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using ResumeSpy.Core.AI;
 using ResumeSpy.Core.Interfaces.AI;
 
-namespace ResumeSpy.Infrastructure.AI
+namespace ResumeSpy.Infrastructure.Services.AI
 {
     /// <summary>
     /// AI-powered translation service using generative text models

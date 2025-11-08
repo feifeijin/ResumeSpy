@@ -4,6 +4,7 @@ namespace ResumeSpy.Infrastructure.Configuration
     {
         Microsoft = 0,
         DeepL = 1,
-        Libre = 2
+        Libre = 2,
+        AI = 3
     }
 }

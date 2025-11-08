@@ -8,7 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace ResumeSpy.Core.Services
+namespace ResumeSpy.Infrastructure.Services.AI
 {
     /// <summary>
     /// Central orchestrator for AI operations with provider selection, fallback, and caching
@@ -48,9 +48,6 @@ namespace ResumeSpy.Core.Services
             }
 
             // Get provider fallback chain from configuration
-            // var providers = _configuration.GetSection("AI:TextProviderFallbackChain").Value.Split(',')
-            //     ?? new[] { "OpenAI" };
-
             var providers = _configuration.GetSection("AI:TextProviderFallbackChain").Value?.Split(',')
             ?? new[] { "OpenAI" };
 
@@ -80,9 +77,11 @@ namespace ResumeSpy.Core.Services
                         // Cache successful response
                         if (cacheKey != null)
                         {
+                            var cacheExpirationValue = _configuration.GetSection("AI:CacheExpirationMinutes").Value;
                             var cacheExpiration = TimeSpan.FromMinutes(
-                                _configuration.GetSection("AI:CacheExpirationMinutes").Value != null ?
-                                int.Parse(_configuration.GetSection("AI:CacheExpirationMinutes").Value) : 60);
+                                !string.IsNullOrEmpty(cacheExpirationValue) && int.TryParse(cacheExpirationValue, out var minutes) 
+                                    ? minutes 
+                                    : 60);
 
                             _cache.Set(cacheKey, response, cacheExpiration);
                         }
@@ -121,8 +120,9 @@ namespace ResumeSpy.Core.Services
 
             // Create translation service with the selected provider
             var loggerFactory = _serviceProvider.GetRequiredService<ILoggerFactory>();
-            return new Infrastructure.AI.AITranslationService(
-                textService);
+            var logger = loggerFactory.CreateLogger<AITranslationService>();
+            
+            return new AITranslationService(textService, logger);
         }
 
         /// <summary>

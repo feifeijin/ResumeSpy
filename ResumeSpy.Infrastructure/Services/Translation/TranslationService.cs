@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.Infrastructure.Configuration;
+using ResumeSpy.Infrastructure.Services.AI;
 
 namespace ResumeSpy.Infrastructure.Services.Translation
 {
@@ -15,9 +16,12 @@ namespace ResumeSpy.Infrastructure.Services.Translation
     {
         private readonly TranslatorFactory _translatorFactory;
 
-        public TranslationService(IHttpClientFactory httpClientFactory, IOptions<TranslatorSettings> translatorSettings)
+        public TranslationService(
+            IHttpClientFactory httpClientFactory, 
+            IOptions<TranslatorSettings> translatorSettings,
+            AIOrchestratorService? aiOrchestrator = null)
         {
-            _translatorFactory = new TranslatorFactory(httpClientFactory, translatorSettings);
+            _translatorFactory = new TranslatorFactory(httpClientFactory, translatorSettings, aiOrchestrator);
         }
 
         public async Task<string> DetectLanguageAsync(string text)

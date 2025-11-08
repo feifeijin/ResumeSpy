@@ -7,7 +7,7 @@ using ResumeSpy.Core.AI;
 using ResumeSpy.Core.Interfaces.AI;
 using System.Diagnostics;
 
-namespace ResumeSpy.Infrastructure.AI
+namespace ResumeSpy.Infrastructure.Services.AI
 {
     /// <summary>
     /// OpenAI/Azure OpenAI adapter for generative text services
@@ -32,8 +32,11 @@ namespace ResumeSpy.Infrastructure.AI
             _defaultModel = configuration["AI:OpenAI:DefaultModel"] ?? "gpt-4o-mini";
             
             // Pricing per 1K tokens (update based on your model)
-            _inputTokenCostPer1K = decimal.Parse(configuration["AI:OpenAI:InputTokenCostPer1K"] ?? "0.00015");
-            _outputTokenCostPer1K = decimal.Parse(configuration["AI:OpenAI:OutputTokenCostPer1K"] ?? "0.0006");
+            var inputCostStr = configuration["AI:OpenAI:InputTokenCostPer1K"] ?? "0.00015";
+            var outputCostStr = configuration["AI:OpenAI:OutputTokenCostPer1K"] ?? "0.0006";
+            
+            _inputTokenCostPer1K = decimal.TryParse(inputCostStr, out var inputCost) ? inputCost : 0.00015m;
+            _outputTokenCostPer1K = decimal.TryParse(outputCostStr, out var outputCost) ? outputCost : 0.0006m;
 
             _client = new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
         }
