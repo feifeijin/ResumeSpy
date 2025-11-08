@@ -33,6 +33,7 @@ namespace ResumeSpy.UI.Extensions
             #region AI Services
             // Register AI providers with keyed services
             services.AddKeyedSingleton<IGenerativeTextService, OpenAITextService>("OpenAI");
+            services.AddKeyedSingleton<IGenerativeTextService, HuggingFaceTextService>("HuggingFace");
             
             // Register the AI Orchestrator
             services.AddScoped<ResumeSpy.Infrastructure.Services.AI.AIOrchestratorService>();
