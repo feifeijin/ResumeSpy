@@ -5,6 +5,7 @@ using ResumeSpy.Core.Interfaces.AI;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ResumeSpy.Infrastructure.Services.AI
 {
@@ -44,13 +45,13 @@ namespace ResumeSpy.Infrastructure.Services.AI
             try
             {
                 // Create OpenAI-compatible chat completion payload
-                var payload = new
+                var payload = new GenericChatCompletionRequest
                 {
-                    model = modelToUse,
-                    messages = CreateMessages(request),
-                    max_tokens = request.MaxTokens,
-                    temperature = request.Temperature,
-                    stream = false
+                    Model = modelToUse,
+                    Messages = CreateMessages(request),
+                    MaxTokens = request.MaxTokens,
+                    Temperature = request.Temperature,
+                    Stream = false
                 };
 
                 var json = JsonSerializer.Serialize(payload);
@@ -72,9 +73,29 @@ namespace ResumeSpy.Infrastructure.Services.AI
                 response.EnsureSuccessStatusCode();
 
                 var responseContent = await response.Content.ReadAsStringAsync();
-                var chatCompletion = JsonSerializer.Deserialize<ChatCompletionResponse>(responseContent);
+                var chatCompletion = JsonSerializer.Deserialize<GenericChatCompletionResponse>(responseContent);
                 
-                var generatedText = chatCompletion?.Choices?[0]?.Message?.Content ?? "";
+                if (chatCompletion?.Choices == null || chatCompletion.Choices.Length == 0)
+                {
+                    throw new InvalidOperationException("No choices returned from HuggingFace API");
+                }
+
+                var firstChoice = chatCompletion.Choices[0];
+                var generatedText = firstChoice?.Message?.Content ?? "";
+
+                // Check for content filtering
+                if (firstChoice?.ContentFilterResults != null)
+                {
+                    var filtered = IsContentFiltered(firstChoice.ContentFilterResults);
+                    if (filtered.IsFiltered)
+                    {
+                        _logger.LogWarning("Content was filtered by HuggingFace: {FilterReason}", filtered.Reason);
+                    }
+                }
+
+                // Log additional API response details
+                _logger.LogDebug("HuggingFace API Response - ID: {Id}, Model: {Model}, FinishReason: {FinishReason}", 
+                    chatCompletion.Id, chatCompletion.Model, firstChoice?.FinishReason);
 
                 stopwatch.Stop();
 
@@ -114,18 +135,18 @@ namespace ResumeSpy.Infrastructure.Services.AI
             }
         }
 
-        private object[] CreateMessages(AIRequest request)
+        private GenericChatMessage[] CreateMessages(AIRequest request)
         {
-            var messages = new List<object>();
+            var messages = new List<GenericChatMessage>();
 
             // Add system message if provided
             if (!string.IsNullOrWhiteSpace(request.SystemMessage))
             {
-                messages.Add(new { role = "system", content = request.SystemMessage });
+                messages.Add(new GenericChatMessage { Role = "system", Content = request.SystemMessage });
             }
 
             // Add user message
-            messages.Add(new { role = "user", content = request.Prompt });
+            messages.Add(new GenericChatMessage { Role = "user", Content = request.Prompt });
 
             return messages.ToArray();
         }
@@ -137,34 +158,24 @@ namespace ResumeSpy.Infrastructure.Services.AI
                 : request.Prompt;
         }
 
+        private (bool IsFiltered, string Reason) IsContentFiltered(GenericContentFilterResults filterResults)
+        {
+            var reasons = new List<string>();
+
+            if (filterResults.Hate?.Filtered == true) reasons.Add("Hate");
+            if (filterResults.SelfHarm?.Filtered == true) reasons.Add("Self-harm");
+            if (filterResults.Sexual?.Filtered == true) reasons.Add("Sexual");
+            if (filterResults.Violence?.Filtered == true) reasons.Add("Violence");
+            if (filterResults.Jailbreak?.Filtered == true) reasons.Add("Jailbreak");
+            if (filterResults.Profanity?.Filtered == true) reasons.Add("Profanity");
+
+            return (reasons.Any(), string.Join(", ", reasons));
+        }
+
         private static int EstimateTokenCount(string text)
         {
             // Rough estimation: ~4 characters per token for English text
             return Math.Max(1, text.Length / 4);
-        }
-
-        // DTOs for OpenAI-compatible chat completions API
-        private class ChatCompletionResponse
-        {
-            public Choice[]? Choices { get; set; }
-            public Usage? Usage { get; set; }
-        }
-
-        private class Choice
-        {
-            public Message? Message { get; set; }
-        }
-
-        private class Message
-        {
-            public string? Content { get; set; }
-        }
-
-        private class Usage
-        {
-            public int PromptTokens { get; set; }
-            public int CompletionTokens { get; set; }
-            public int TotalTokens { get; set; }
         }
     }
 }
