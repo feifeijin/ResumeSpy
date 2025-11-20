@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -140,12 +141,22 @@ app.UseSwaggerUI(options =>
     options.DocumentTitle = "ResumeSpy API Documentation";
 });
 
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.Equals("/", StringComparison.OrdinalIgnoreCase) ||
+        context.Request.Path.Equals("/swagger.html", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.Redirect("/swagger/index.html", permanent: false);
+        return;
+    }
+
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
-app.MapGet("/swagger.html", () => Results.Redirect("/swagger/index.html", permanent: false));
 
 app.Run();
 
