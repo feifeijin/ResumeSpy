@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using ResumeSpy.Infrastructure.Data;
 using ResumeSpy.UI.Extensions;
 using ResumeSpy.UI.Middlewares;
@@ -30,7 +31,35 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 // Add services to the container.
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "ResumeSpy API",
+        Version = "v1",
+        Description = "ResumeSpy Web API documentation"
+    });
+
+    var securityScheme = new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Description = "Enter JWT bearer token",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    };
+
+    options.AddSecurityDefinition("Bearer", securityScheme);
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            securityScheme,
+            Array.Empty<string>()
+        }
+    });
+});
 builder.Services.AddHttpClient();
 
 builder.Services.AddControllersWithViews();
@@ -99,20 +128,24 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
-
-// Use the CORS middleware BEFORE other middleware
 app.UseCors("AllowSpecificOrigin");
 
 app.UseStaticFiles(); // Serve static files from wwwroot
 app.UseHttpsRedirection();
+
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "ResumeSpy API v1");
+    options.DocumentTitle = "ResumeSpy API Documentation";
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapGet("/swagger.html", () => Results.Redirect("/swagger/index.html", permanent: false));
 
 app.Run();
 

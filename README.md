@@ -8,6 +8,7 @@ ResumeSpy is a back-end application designed to efficiently manage resumes with 
 - **Multi-language Support**: Support for translating resumes to various languages.
 - **JD-specific Customization**: Allows resume creation tailored for job descriptions.
 - **User Authentication**: JWT-based API authentication with refresh tokens plus Google and GitHub social login support.
+- **Interactive API Docs**: Built-in Swagger UI available at `/swagger.html` for exploring endpoints.
 
 ## Technology Stack
 
@@ -59,3 +60,8 @@ Add the following sections to your `appsettings.*.json` files and populate them 
 ```
 
 > ⚠️ Keep the signing key and OAuth secrets out of source control. Use user secrets or environment variables in production.
+
+### API Documentation
+
+- Start the API (`dotnet run --project ResumeSpy.UI`).
+- Open `https://localhost:7227/swagger.html` (or the base URL you run on) to view the interactive documentation and try endpoints with JWT auth.
