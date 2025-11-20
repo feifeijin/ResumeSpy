@@ -13,7 +13,7 @@ namespace ResumeSpy.Infrastructure.Data
     {
         public static void Configure(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<IdentityUser>().ToTable("Users");
+            modelBuilder.Entity<ApplicationUser>().ToTable("Users");
             modelBuilder.Entity<IdentityRole>().ToTable("Roles");
 
             // Add any additional entity configurations here

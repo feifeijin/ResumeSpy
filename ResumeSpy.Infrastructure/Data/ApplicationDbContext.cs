@@ -1,16 +1,10 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ResumeSpy.Core.Entities.General;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ResumeSpy.Infrastructure.Data
 {
-    public class ApplicationDbContext : IdentityDbContext
+    public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
@@ -19,6 +13,7 @@ namespace ResumeSpy.Infrastructure.Data
         #region DbSet Section
         public DbSet<Resume> Resumes { get; set; }
         public DbSet<ResumeDetail> ResumeDetails { get; set; }
+        public DbSet<UserRefreshToken> UserRefreshTokens { get; set; }
 
         #endregion
 
@@ -44,6 +39,24 @@ namespace ResumeSpy.Infrastructure.Data
             builder.Entity<ResumeDetail>()
                 .Property(e => e.UpdateDate)
                 .HasColumnType("timestamp");
+
+            builder.Entity<ApplicationUser>(entity =>
+            {
+                entity.Property(e => e.DisplayName).HasMaxLength(128);
+                entity.Property(e => e.AvatarUrl).HasMaxLength(512);
+                entity.Property(e => e.JobTitle).HasMaxLength(128);
+                entity.Property(e => e.Organization).HasMaxLength(128);
+            });
+
+            builder.Entity<UserRefreshToken>(entity =>
+            {
+                entity.Property(e => e.Id).ValueGeneratedOnAdd();
+                entity.HasIndex(e => e.Token).IsUnique();
+                entity.HasOne(e => e.User)
+                    .WithMany(u => u.RefreshTokens)
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
         }
 
     }
