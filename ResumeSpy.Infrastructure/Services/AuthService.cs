@@ -4,12 +4,15 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -31,6 +34,8 @@ namespace ResumeSpy.Infrastructure.Services
         private readonly GithubAuthSettings _githubSettings;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ApplicationDbContext _context;
+        private readonly IEmailSender _emailSender;
+        private readonly EmailSettings _emailSettings;
 
         public AuthService(
             UserManager<ApplicationUser> userManager,
@@ -39,7 +44,9 @@ namespace ResumeSpy.Infrastructure.Services
             IOptions<ExternalAuthSettings> externalAuthOptions,
             ILogger<AuthService> logger,
             IHttpClientFactory httpClientFactory,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            IEmailSender emailSender,
+            IOptions<EmailSettings> emailOptions)
         {
             _userManager = userManager;
             _signInManager = signInManager;
@@ -47,6 +54,8 @@ namespace ResumeSpy.Infrastructure.Services
             _logger = logger;
             _httpClientFactory = httpClientFactory;
             _context = context;
+            _emailSender = emailSender;
+            _emailSettings = emailOptions.Value;
 
             var externalSettings = externalAuthOptions.Value ?? new ExternalAuthSettings();
             _googleSettings = externalSettings.Google;
@@ -181,6 +190,147 @@ namespace ResumeSpy.Infrastructure.Services
                 ExternalProviders.Google => await HandleGoogleLoginAsync(request, cancellationToken),
                 ExternalProviders.Github => await HandleGithubLoginAsync(request, cancellationToken),
                 _ => AuthResponse.Failed("Unsupported external provider.")
+            };
+        }
+
+        public async Task<AuthResponse> RequestEmailLinkAsync(EmailLinkRequest request, CancellationToken cancellationToken = default)
+        {
+            var email = request.Email.Trim();
+            var normalizedEmail = email.ToLowerInvariant();
+            var user = await _userManager.FindByEmailAsync(normalizedEmail);
+
+            if (user == null)
+            {
+                user = new ApplicationUser
+                {
+                    UserName = normalizedEmail,
+                    Email = normalizedEmail,
+                    DisplayName = email,
+                    EmailConfirmed = false,
+                    IsExternalLogin = false
+                };
+
+                var createResult = await _userManager.CreateAsync(user);
+                if (!createResult.Succeeded)
+                {
+                    return AuthResponse.Failed(createResult.Errors.Select(e => e.Description).ToArray());
+                }
+            }
+
+            var now = DateTime.UtcNow;
+
+            var expiredTokens = await _context.EmailLoginTokens
+                .Where(t => t.UserId == user.Id && (t.ExpiresAtUtc <= now || t.ConsumedAtUtc != null))
+                .ToListAsync(cancellationToken);
+
+            if (expiredTokens.Count > 0)
+            {
+                _context.EmailLoginTokens.RemoveRange(expiredTokens);
+            }
+
+            var rawTokenBytes = RandomNumberGenerator.GetBytes(32);
+            var rawToken = WebEncoders.Base64UrlEncode(rawTokenBytes);
+            var tokenHash = ComputeSha256(rawToken);
+
+            var expiry = now.AddMinutes(_emailSettings.MagicLink.ExpiryMinutes);
+            var redirectUrl = string.IsNullOrWhiteSpace(request.RedirectUrl) ? null : request.RedirectUrl;
+
+            var loginToken = new EmailLoginToken
+            {
+                UserId = user.Id,
+                TokenHash = tokenHash,
+                ExpiresAtUtc = expiry,
+                RedirectUrl = redirectUrl
+            };
+
+            _context.EmailLoginTokens.Add(loginToken);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            var callbackBase = redirectUrl ?? _emailSettings.MagicLink.ClientCallbackUrl;
+            var link = QueryHelpers.AddQueryString(callbackBase, new Dictionary<string, string?>
+            {
+                ["token"] = rawToken,
+                ["email"] = normalizedEmail
+            });
+
+            var displayName = user.DisplayName ?? normalizedEmail;
+            var template = _emailSettings.Templates?.MagicLink ?? new EmailTemplate();
+            var subject = ReplaceTokens(template.Subject, displayName, link, expiry);
+            var htmlBody = ReplaceTokens(template.HtmlBody, displayName, link, expiry);
+            var textBody = ReplaceTokens(template.TextBody, displayName, link, expiry);
+
+            await _emailSender.SendAsync(new Core.Models.Email.EmailMessage
+            {
+                To = normalizedEmail,
+                Subject = subject,
+                HtmlBody = string.IsNullOrWhiteSpace(htmlBody) ? null : htmlBody,
+                TextBody = string.IsNullOrWhiteSpace(textBody) ? null : textBody
+            }, cancellationToken);
+
+            return new AuthResponse
+            {
+                Succeeded = true,
+                Email = user.Email,
+                UserId = user.Id,
+                IsNewUser = !user.EmailConfirmed
+            };
+        }
+
+        public async Task<AuthResponse> ConfirmEmailLinkAsync(ConfirmEmailLinkRequest request, CancellationToken cancellationToken = default)
+        {
+            var email = request.Email.Trim().ToLowerInvariant();
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                return AuthResponse.Failed("Invalid or expired link.");
+            }
+
+            var tokenHash = ComputeSha256(request.Token);
+            var now = DateTime.UtcNow;
+
+            var loginToken = await _context.EmailLoginTokens
+                .Where(t => t.UserId == user.Id && t.TokenHash == tokenHash)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (loginToken == null || loginToken.ExpiresAtUtc < now || loginToken.ConsumedAtUtc != null)
+            {
+                return AuthResponse.Failed("Invalid or expired link.");
+            }
+
+            loginToken.ConsumedAtUtc = now;
+
+            // Remove other expired tokens for cleanliness
+            var staleTokens = await _context.EmailLoginTokens
+                .Where(t => t.UserId == user.Id && (t.ExpiresAtUtc < now.AddMinutes(-1) || t.ConsumedAtUtc != null) && t.Id != loginToken.Id)
+                .ToListAsync(cancellationToken);
+
+            if (staleTokens.Count > 0)
+            {
+                _context.EmailLoginTokens.RemoveRange(staleTokens);
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            var isNewUser = !user.EmailConfirmed;
+            if (!user.EmailConfirmed)
+            {
+                user.EmailConfirmed = true;
+                await _userManager.UpdateAsync(user);
+            }
+
+            var tokens = await _tokenService.GenerateTokenPairAsync(user, cancellationToken);
+
+            return new AuthResponse
+            {
+                Succeeded = true,
+                AccessToken = tokens.AccessToken,
+                AccessTokenExpiresAt = tokens.AccessTokenExpiresAt,
+                RefreshToken = tokens.RefreshToken,
+                RefreshTokenExpiresAt = tokens.RefreshTokenExpiresAt,
+                UserId = user.Id,
+                Email = user.Email,
+                DisplayName = user.DisplayName,
+                IsNewUser = isNewUser
             };
         }
 
@@ -362,6 +512,28 @@ namespace ResumeSpy.Infrastructure.Services
         }
 
         private static readonly JsonSerializerOptions JsonSerializerOptions = new(JsonSerializerDefaults.Web);
+
+        private static string ComputeSha256(string value)
+        {
+            using var sha = SHA256.Create();
+            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(value));
+            return Convert.ToHexString(bytes);
+        }
+
+        private string ReplaceTokens(string template, string displayName, string link, DateTime expiry)
+        {
+            if (string.IsNullOrWhiteSpace(template))
+            {
+                return template;
+            }
+
+            return template
+                .Replace("{{DisplayName}}", displayName)
+                .Replace("{{MagicLink}}", link)
+                .Replace("{{ExpiryMinutes}}", _emailSettings.MagicLink.ExpiryMinutes.ToString())
+                .Replace("{{ExpiresAtUtc}}", expiry.ToString("O"))
+                .Replace("{{ExpiresAtLocal}}", expiry.ToLocalTime().ToString("f"));
+        }
 
         private sealed record GithubUserResponse(
             [property: JsonPropertyName("id")] long Id,

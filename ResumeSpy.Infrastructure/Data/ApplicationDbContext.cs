@@ -13,7 +13,8 @@ namespace ResumeSpy.Infrastructure.Data
         #region DbSet Section
         public DbSet<Resume> Resumes { get; set; }
         public DbSet<ResumeDetail> ResumeDetails { get; set; }
-        public DbSet<UserRefreshToken> UserRefreshTokens { get; set; }
+    public DbSet<UserRefreshToken> UserRefreshTokens { get; set; }
+    public DbSet<EmailLoginToken> EmailLoginTokens { get; set; }
 
         #endregion
 
@@ -54,6 +55,25 @@ namespace ResumeSpy.Infrastructure.Data
                 entity.HasIndex(e => e.Token).IsUnique();
                 entity.HasOne(e => e.User)
                     .WithMany(u => u.RefreshTokens)
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<EmailLoginToken>(entity =>
+            {
+                entity.Property(e => e.Id).ValueGeneratedOnAdd();
+                entity.Property(e => e.TokenHash)
+                    .IsRequired()
+                    .HasMaxLength(128);
+                entity.Property(e => e.RedirectUrl)
+                    .HasMaxLength(1024);
+                entity.Property(e => e.ExpiresAtUtc)
+                    .HasColumnType("timestamp");
+                entity.Property(e => e.ConsumedAtUtc)
+                    .HasColumnType("timestamp");
+                entity.HasIndex(e => new { e.UserId, e.TokenHash }).IsUnique();
+                entity.HasOne(e => e.User)
+                    .WithMany(u => u.EmailLoginTokens)
                     .HasForeignKey(e => e.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });

@@ -76,6 +76,7 @@ builder.Services.AddLogging();
 // Load translator settings from configuration
 builder.Services.Configure<TranslatorSettings>(builder.Configuration.GetSection("TranslatorSettings"));
 builder.Services.Configure<ExternalAuthSettings>(builder.Configuration.GetSection("ExternalAuth"));
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
 
 var jwtSettingsSection = builder.Configuration.GetSection("Jwt");
 builder.Services.Configure<JwtSettings>(jwtSettingsSection);

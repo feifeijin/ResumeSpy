@@ -58,6 +58,42 @@ namespace ResumeSpy.UI.Controllers
             return Ok(response);
         }
 
+        [HttpPost("magic/request")]
+        [AllowAnonymous]
+        public async Task<IActionResult> RequestEmailLink([FromBody] EmailLinkRequest request, CancellationToken cancellationToken)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var response = await _authService.RequestEmailLinkAsync(request, cancellationToken);
+            if (!response.Succeeded)
+            {
+                return BadRequest(response);
+            }
+
+            return Ok(response);
+        }
+
+        [HttpPost("magic/confirm")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ConfirmEmailLink([FromBody] ConfirmEmailLinkRequest request, CancellationToken cancellationToken)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var response = await _authService.ConfirmEmailLinkAsync(request, cancellationToken);
+            if (!response.Succeeded)
+            {
+                return BadRequest(response);
+            }
+
+            return Ok(response);
+        }
+
         [HttpPost("refresh")]
         [AllowAnonymous]
         public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
