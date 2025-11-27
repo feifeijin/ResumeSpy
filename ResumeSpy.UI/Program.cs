@@ -10,6 +10,7 @@ using ResumeSpy.UI.Extensions;
 using ResumeSpy.UI.Middlewares;
 using ResumeSpy.Infrastructure.Configuration;
 using ResumeSpy.Core.Entities.General;
+using ResumeSpy.UI.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,6 +36,10 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    // Enable annotations
+    options.EnableAnnotations();
+    options.DocumentFilter<FormDataDocumentFilter>();
+    
     options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "ResumeSpy API",

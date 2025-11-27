@@ -18,6 +18,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="X.PagedList" Version="10.5.7" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="6.6.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ResumeSpy.Core\ResumeSpy.Core.csproj" />

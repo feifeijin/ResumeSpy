@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace ResumeSpy.Core.Entities.Business.Auth
 {
@@ -17,6 +18,7 @@ namespace ResumeSpy.Core.Entities.Business.Auth
         public string ConfirmPassword { get; set; } = string.Empty;
 
         [MaxLength(128)]
+        [SwaggerSchema("The display name of the user.", ReadOnly = true)]
         public string? DisplayName { get; set; }
     }
 }
