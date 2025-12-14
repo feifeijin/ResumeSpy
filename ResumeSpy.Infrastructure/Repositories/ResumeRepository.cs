@@ -1,6 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using ResumeSpy.Core.Entities.General;
 using ResumeSpy.Core.Interfaces.IRepositories;
 using ResumeSpy.Infrastructure.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ResumeSpy.Infrastructure.Repositories
 {
@@ -10,6 +14,12 @@ namespace ResumeSpy.Infrastructure.Repositories
         {
             
         }
-        
+
+        public async Task<List<Resume>> GetByGuestSessionIdAsync(Guid guestSessionId)
+        {
+            return await DbSet
+                .Where(r => r.GuestSessionId == guestSessionId)
+                .ToListAsync();
+        }
     }
 }

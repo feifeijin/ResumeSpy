@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ResumeSpy.Core.Entities.Business;
 using ResumeSpy.Core.Interfaces.IServices;
+using ResumeSpy.UI.Middlewares;
+using System.Security.Claims;
 using X.PagedList;
 
 
@@ -14,17 +16,20 @@ namespace ResumeSpy.UI.Controllers
         private readonly ILogger<ResumeController> _logger;
         private readonly IResumeService _resumeService;
         private readonly IResumeManagementService _resumeManagementService;
+        private readonly IGuestSessionService _guestSessionService;
         private readonly IMemoryCache _memoryCache;
 
         public ResumeController(
             ILogger<ResumeController> logger, 
             IResumeService resumeService, 
             IResumeManagementService resumeManagementService,
+            IGuestSessionService guestSessionService,
             IMemoryCache memoryCache)
         {
             _logger = logger;
             _resumeService = resumeService;
             _resumeManagementService = resumeManagementService;
+            _guestSessionService = guestSessionService;
             _memoryCache = memoryCache;
         }
 
@@ -54,11 +59,45 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
-                var createdResume = await _resumeService.Create(resume);
-                return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
+                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var guestSessionId = HttpContext.GetGuestSessionId();
+                
+                // Authenticated users get full access
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    resume.IsGuest = false;
+                    resume.UserId = userId;
+                    var createdResume = await _resumeService.Create(resume);
+                    return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
+                }
+
+                // Guest flow: enforce limit
+                if (guestSessionId.HasValue)
+                {
+                    var hasReachedLimit = await _guestSessionService.HasReachedResumeLimitAsync(guestSessionId.Value);
+                    if (hasReachedLimit)
+                    {
+                        return StatusCode(403, new { error = "Guest resume limit reached. Please register to create more resumes." });
+                    }
+
+                    resume.IsGuest = true;
+                    resume.GuestSessionId = guestSessionId.Value;
+                    resume.CreatedIpAddress = HttpContext.GetGuestIpAddress();
+                    resume.ExpiresAt = DateTime.UtcNow.AddDays(30);
+
+                    var createdResume = await _resumeService.Create(resume);
+                    await _guestSessionService.IncrementResumeCountAsync(guestSessionId.Value);
+
+                    _logger.LogInformation($"Guest resume created: {createdResume.Id}");
+                    return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
+                }
+
+                // Should not happen because middleware auto-creates guest session for anonymous users
+                return Unauthorized("Guest session not found.");
             }
             catch (Exception ex)
             {
+                _logger.LogError($"Error creating resume: {ex.Message}");
                 return BadRequest(ex.Message);
             }
         }

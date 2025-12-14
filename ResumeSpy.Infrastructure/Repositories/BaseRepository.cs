@@ -11,7 +11,7 @@ namespace ResumeSpy.Infrastructure.Repositories
     //Unit of Work Pattern
     public class BaseRepository<T> : IBaseRepository<T> where T : class
     {
-        private readonly ApplicationDbContext _dbContext;
+        protected readonly ApplicationDbContext _dbContext;
         protected DbSet<T> DbSet => _dbContext.Set<T>();
 
         public BaseRepository(ApplicationDbContext dbContext)

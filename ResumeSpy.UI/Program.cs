@@ -134,6 +134,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.UseRequestResponseLogging(); 
 // Configure the HTTP request pipeline.
 app.UseCors("AllowSpecificOrigin");
 
@@ -159,6 +160,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
+app.UseGuestSessionMiddleware();
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -28,7 +28,8 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IEmailSender, SmtpEmailSender>();
-            
+            services.AddScoped<IGuestSessionService, GuestSessionService>();
+
             // Translation Services
             services.AddScoped<ITranslationService, TranslationService>();
 
@@ -38,15 +39,16 @@ namespace ResumeSpy.UI.Extensions
             // Register AI providers with keyed services
             services.AddKeyedSingleton<IGenerativeTextService, OpenAITextService>("OpenAI");
             services.AddKeyedSingleton<IGenerativeTextService, HuggingFaceTextService>("HuggingFace");
-            
+
             // Register the AI Orchestrator
             services.AddScoped<ResumeSpy.Infrastructure.Services.AI.AIOrchestratorService>();
-            
+
             #endregion
 
             #region Repositories
             services.AddScoped<IResumeRepository, ResumeRepository>();
             services.AddScoped<IResumeDetailRepository, ResumeDetailRepository>();
+            services.AddScoped<IGuestSessionRepository, GuestSessionRepository>();
             services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             #endregion

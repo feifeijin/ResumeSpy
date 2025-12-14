@@ -105,5 +105,29 @@ namespace ResumeSpy.Core.Services
                 await _unitOfWork.SaveChangesAsync();
             }
         }
+
+        public async Task<int> ReassignGuestResumesAsync(Guid guestSessionId, string userId)
+        {
+            var resumes = await _resumeRepository.GetByGuestSessionIdAsync(guestSessionId);
+            if (resumes == null || !resumes.Any())
+            {
+                return 0;
+            }
+
+            foreach (var resume in resumes)
+            {
+                resume.UserId = userId;
+                resume.IsGuest = false;
+                resume.GuestSessionId = null;
+                resume.ExpiresAt = null;
+            }
+
+            foreach (var resume in resumes)
+            {
+                await _resumeRepository.Update(resume);
+            }
+
+            return await _unitOfWork.SaveChangesAsync();
+        }
     }
 }

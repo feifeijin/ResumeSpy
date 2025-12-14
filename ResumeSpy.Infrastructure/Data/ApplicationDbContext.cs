@@ -14,8 +14,9 @@ namespace ResumeSpy.Infrastructure.Data
         #region DbSet Section
         public DbSet<Resume> Resumes { get; set; }
         public DbSet<ResumeDetail> ResumeDetails { get; set; }
-    public DbSet<UserRefreshToken> UserRefreshTokens { get; set; }
-    public DbSet<EmailLoginToken> EmailLoginTokens { get; set; }
+        public DbSet<UserRefreshToken> UserRefreshTokens { get; set; }
+        public DbSet<EmailLoginToken> EmailLoginTokens { get; set; }
+        public DbSet<GuestSession> GuestSessions { get; set; }
 
         #endregion
 
@@ -100,6 +101,44 @@ namespace ResumeSpy.Infrastructure.Data
                     .WithMany(u => u.EmailLoginTokens)
                     .HasForeignKey(e => e.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<Resume>(entity =>
+            {
+                entity.HasIndex(e => e.UserId);
+                entity.HasIndex(e => e.GuestSessionId);
+                entity.HasIndex(e => new { e.UserId, e.GuestSessionId });
+                
+                entity.HasOne(e => e.User)
+                    .WithMany(u => u.Resumes)
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                
+                entity.HasOne(e => e.GuestSession)
+                    .WithMany()
+                    .HasForeignKey(e => e.GuestSessionId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<GuestSession>(entity =>
+            {
+                entity.Property(e => e.IpAddress)
+                    .IsRequired()
+                    .HasMaxLength(45); // IPv6 max length
+                
+                entity.Property(e => e.UserAgent)
+                    .HasMaxLength(512);
+                
+                entity.Property(e => e.ExpiresAt)
+                    .HasColumnType("timestamp");
+                
+                entity.HasIndex(e => e.ExpiresAt);
+                entity.HasIndex(e => e.IsConverted);
+                
+                entity.HasOne(e => e.ConvertedUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.ConvertedUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
         }
 

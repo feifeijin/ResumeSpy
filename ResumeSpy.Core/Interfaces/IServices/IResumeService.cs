@@ -18,5 +18,6 @@ namespace ResumeSpy.Core.Interfaces.IServices
         Task<ResumeViewModel> Create(ResumeViewModel model);
         Task Update(ResumeViewModel model);
         Task Delete(string id);
+        Task<int> ReassignGuestResumesAsync(Guid guestSessionId, string userId);
     }
 }
