@@ -59,9 +59,10 @@ namespace ResumeSpy.UI.Middlewares
                 {
                     HttpOnly = true,
                     Secure = true,
-                    SameSite = SameSiteMode.Strict,
+                    SameSite = SameSiteMode.None, // allow cross-site requests from SPA origin
                     Expires = newSession.ExpiresAt,
                     Path = "/"
+                    // Domain = "your-domain.com" // set if API uses a subdomain and you need sharing
                 });
 
                 _logger.LogInformation($"Created new guest session: {sessionId}");
