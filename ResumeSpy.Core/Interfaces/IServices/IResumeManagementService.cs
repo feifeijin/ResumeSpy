@@ -10,8 +10,11 @@ namespace ResumeSpy.Core.Interfaces.IServices
         /// If ResumeId is null/empty, creates a new Resume first, then the detail.
         /// </summary>
         /// <param name="model">The ResumeDetail to create</param>
+        /// <param name="userId">Optional user ID for authenticated users</param>
+        /// <param name="guestSessionId">Optional guest session ID for guest users</param>
+        /// <param name="ipAddress">IP address of the creator</param>
         /// <returns>The created ResumeDetail with proper ResumeId assigned</returns>
-        Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model);
+        Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model, string? userId = null, Guid? guestSessionId = null, string? ipAddress = null);
 
         /// <summary>
         /// Clones a Resume and all its associated ResumeDetails in a single transaction.

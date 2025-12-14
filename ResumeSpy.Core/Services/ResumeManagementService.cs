@@ -29,7 +29,7 @@ namespace ResumeSpy.Core.Services
             _imageGenerationService = imageGenerationService;
         }
 
-        public async Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model)
+        public async Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model, string? userId = null, Guid? guestSessionId = null, string? ipAddress = null)
         {
             // Auto-detect language if it's empty or null
             if (string.IsNullOrWhiteSpace(model.Language) && !string.IsNullOrWhiteSpace(model.Content))
@@ -51,7 +51,7 @@ namespace ResumeSpy.Core.Services
 
             // Case 2: Resume doesn't exist (ResumeId is null, empty, or "undefined")
             // Create Resume first, then ResumeDetail in a transaction
-            return await CreateResumeDetailWithNewResume(model);
+            return await CreateResumeDetailWithNewResume(model, userId, guestSessionId, ipAddress);
         }
 
         private async Task<ResumeDetailViewModel> CreateResumeDetailForExistingResume(ResumeDetailViewModel model)
@@ -71,7 +71,7 @@ namespace ResumeSpy.Core.Services
             return result;
         }
 
-        private async Task<ResumeDetailViewModel> CreateResumeDetailWithNewResume(ResumeDetailViewModel model)
+        private async Task<ResumeDetailViewModel> CreateResumeDetailWithNewResume(ResumeDetailViewModel model, string? userId = null, Guid? guestSessionId = null, string? ipAddress = null)
         {
             await _unitOfWork.BeginTransactionAsync();
             try
@@ -85,13 +85,18 @@ namespace ResumeSpy.Core.Services
                     model.ResumeImgPath = await _imageGenerationService.GenerateThumbnailAsync(model.Content, $"{newResumeId}_{newResumeDetailId}");
                 }
 
-                // Create new Resume first
+                // Create new Resume first with guest/user context
                 var newResume = new ResumeViewModel
                 {
                     Id = newResumeId,
                     Title = model.Name ?? "New Resume",
                     ResumeDetailCount = 1,
-                    ResumeImgPath = model.ResumeImgPath ?? "/assets/default_resume.png"
+                    ResumeImgPath = model.ResumeImgPath ?? "/assets/default_resume.png",
+                    UserId = userId,
+                    GuestSessionId = guestSessionId,
+                    IsGuest = guestSessionId.HasValue,
+                    CreatedIpAddress = ipAddress,
+                    ExpiresAt = guestSessionId.HasValue ? DateTime.UtcNow.AddDays(30) : null
                 };
 
                 var createdResume = await _resumeService.Create(newResume);
