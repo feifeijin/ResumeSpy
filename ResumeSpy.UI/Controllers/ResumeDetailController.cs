@@ -78,6 +78,14 @@ namespace ResumeSpy.UI.Controllers
 
                 // Let ResumeManagementService handle resume creation with guest/user context
                 var result = await _resumeManagementService.CreateResumeDetailAsync(resumeDetailModel, userId, guestSessionId, guestIp);
+
+                // Only increment guest count AFTER successful creation
+                if (IsFirstTimeResumeCreation(resumeDetailModel) && guestSessionId.HasValue && string.IsNullOrEmpty(userId))
+                {
+                    await _guestSessionService.IncrementResumeCountAsync(guestSessionId.Value);
+                    _logger.LogInformation("Guest session {GuestSessionId} resume count incremented", guestSessionId.Value);
+                }
+
                 return Ok(result);
             }
             catch (Exception ex)
@@ -269,11 +277,6 @@ namespace ResumeSpy.UI.Controllers
             {
                 return StatusCode(403, new { error = "Guest resume limit reached. Please register to create more resumes." });
             }
-
-            // Increment guest resume count
-            await _guestSessionService.IncrementResumeCountAsync(guestSessionId.Value);
-            _logger.LogInformation("Guest session {GuestSessionId} creating resume", guestSessionId.Value);
-
             return null;
         }
     }
