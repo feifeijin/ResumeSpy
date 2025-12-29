@@ -14,11 +14,17 @@ namespace ResumeSpy.UI.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly IResumeManagementService _resumeManagementService;
         private readonly ILogger<AuthController> _logger;
+        private const string GUEST_SESSION_COOKIE = "X-Guest-Session-Id";
 
-        public AuthController(IAuthService authService, ILogger<AuthController> logger)
+        public AuthController(
+            IAuthService authService, 
+            IResumeManagementService resumeManagementService,
+            ILogger<AuthController> logger)
         {
             _authService = authService;
+            _resumeManagementService = resumeManagementService;
             _logger = logger;
         }
 
@@ -37,6 +43,9 @@ namespace ResumeSpy.UI.Controllers
                 return BadRequest(response);
             }
 
+            // Convert guest session to user if exists
+            await TryConvertGuestSessionAsync(response.UserId);
+
             return Ok(response);
         }
 
@@ -54,6 +63,9 @@ namespace ResumeSpy.UI.Controllers
             {
                 return Unauthorized(response);
             }
+
+            // Convert guest session to user if exists
+            await TryConvertGuestSessionAsync(response.UserId);
 
             return Ok(response);
         }
@@ -91,6 +103,9 @@ namespace ResumeSpy.UI.Controllers
                 return BadRequest(response);
             }
 
+            // Convert guest session to user if exists
+            await TryConvertGuestSessionAsync(response.UserId);
+
             return Ok(response);
         }
 
@@ -119,6 +134,9 @@ namespace ResumeSpy.UI.Controllers
             var response = await _authService.ExternalLoginAsync(request, cancellationToken);
             if (!response.Succeeded)
             {
+            // Convert guest session to user if exists
+            await TryConvertGuestSessionAsync(response.UserId);
+
                 return BadRequest(response);
             }
 
@@ -138,6 +156,40 @@ namespace ResumeSpy.UI.Controllers
 
             await _authService.LogoutAsync(userId, request, cancellationToken);
             return NoContent();
+        }
+
+        /// <summary>
+        /// Attempts to convert a guest session to a registered user.
+        /// Errors are logged but do not fail the authentication flow.
+        /// </summary>
+        private async Task TryConvertGuestSessionAsync(string userId)
+        {
+            try
+            {
+                if (Request.Cookies.TryGetValue(GUEST_SESSION_COOKIE, out var sessionIdStr) &&
+                    Guid.TryParse(sessionIdStr, out var sessionGuid))
+                {
+                    var resumeCount = await _resumeManagementService.ConvertGuestToUserAsync(sessionGuid, userId);
+                    
+                    if (resumeCount > 0)
+                    {
+                        _logger.LogInformation($"Converted {resumeCount} guest resumes to user {userId} from session {sessionGuid}");
+                    }
+                    
+                    // Clear the guest session cookie after conversion
+                    Response.Cookies.Delete(GUEST_SESSION_COOKIE, new CookieOptions
+                    {
+                        Path = "/",
+                        SameSite = SameSiteMode.None,
+                        Secure = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the error but don't fail the authentication
+                _logger.LogError(ex, $"Failed to convert guest session for user {userId}. User can still log in.");
+            }
         }
     }
 }

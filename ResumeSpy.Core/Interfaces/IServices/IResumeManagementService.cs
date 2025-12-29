@@ -36,5 +36,14 @@ namespace ResumeSpy.Core.Interfaces.IServices
         /// <param name="model">The ResumeDetailViewModel with updated content.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
         Task UpdateResumeDetailModelContentAsync(ResumeDetailViewModel model);
+
+        /// <summary>
+        /// Converts a guest session to a registered user by reassigning all guest resumes and marking the session as converted.
+        /// This operation is performed in a single transaction to ensure atomicity.
+        /// </summary>
+        /// <param name="guestSessionId">The guest session ID to convert</param>
+        /// <param name="userId">The user ID to assign the resumes to</param>
+        /// <returns>The number of resumes reassigned</returns>
+        Task<int> ConvertGuestToUserAsync(Guid guestSessionId, string userId);
     }
 }

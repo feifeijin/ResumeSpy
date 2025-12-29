@@ -276,5 +276,26 @@ namespace ResumeSpy.Core.Services
                 throw;
             }
         }
+
+        public async Task<int> ConvertGuestToUserAsync(Guid guestSessionId, string userId)
+        {
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                // Step 1: Reassign all guest resumes to the user
+                var resumeCount = await _resumeService.ReassignGuestResumesAsync(guestSessionId, userId);
+
+                // Step 2: Mark the guest session as converted
+                await _guestSessionService.ConvertGuestSessionAsync(guestSessionId, userId);
+
+                await _unitOfWork.CommitTransactionAsync();
+                return resumeCount;
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
+        }
     }
 }

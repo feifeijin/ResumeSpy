@@ -118,7 +118,7 @@ namespace ResumeSpy.Core.Services
             {
                 resume.UserId = userId;
                 resume.IsGuest = false;
-                resume.GuestSessionId = null;
+                // Keep GuestSessionId for audit trail
                 resume.ExpiresAt = null;
             }
 
