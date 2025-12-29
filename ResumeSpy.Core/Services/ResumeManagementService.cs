@@ -36,7 +36,7 @@ namespace ResumeSpy.Core.Services
         public async Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model, string? userId = null, Guid? guestSessionId = null, string? ipAddress = null)
         {
             var isFirstTime = string.IsNullOrEmpty(model.ResumeId) || model.ResumeId == "undefined";
-            
+
             // Validate guest quota for first-time resume creation
             if (isFirstTime && string.IsNullOrEmpty(userId))
             {
@@ -44,7 +44,7 @@ namespace ResumeSpy.Core.Services
                 {
                     throw new UnauthorizedException("Guest session not found.");
                 }
-                
+
                 var hasReachedLimit = await _guestSessionService.HasReachedResumeLimitAsync(guestSessionId.Value);
                 if (hasReachedLimit)
                 {
@@ -95,7 +95,7 @@ namespace ResumeSpy.Core.Services
         private async Task<ResumeDetailViewModel> CreateResumeDetailWithNewResume(ResumeDetailViewModel model, string? userId = null, Guid? guestSessionId = null, string? ipAddress = null)
         {
             var isGuest = guestSessionId.HasValue && string.IsNullOrEmpty(userId);
-            
+
             await _unitOfWork.BeginTransactionAsync();
             try
             {
@@ -116,10 +116,10 @@ namespace ResumeSpy.Core.Services
                     ResumeDetailCount = 1,
                     ResumeImgPath = model.ResumeImgPath ?? "/assets/default_resume.png",
                     UserId = userId,
-                    GuestSessionId = guestSessionId,
-                    IsGuest = guestSessionId.HasValue,
+                    GuestSessionId = isGuest ? guestSessionId : null,  // Only set if actually guest
+                    IsGuest = isGuest,  // Use the calculated variable
                     CreatedIpAddress = ipAddress,
-                    ExpiresAt = guestSessionId.HasValue ? DateTime.UtcNow.AddDays(30) : null
+                    ExpiresAt = isGuest ? DateTime.UtcNow.AddDays(30) : null
                 };
 
                 var createdResume = await _resumeService.Create(newResume);

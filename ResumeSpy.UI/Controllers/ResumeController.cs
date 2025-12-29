@@ -67,6 +67,8 @@ namespace ResumeSpy.UI.Controllers
                 {
                     resume.IsGuest = false;
                     resume.UserId = userId;
+                    resume.GuestSessionId = null;
+                    resume.ExpiresAt = null;
                     var createdResume = await _resumeService.Create(resume);
                     return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
                 }
