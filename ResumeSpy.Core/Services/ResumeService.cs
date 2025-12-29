@@ -34,8 +34,8 @@ namespace ResumeSpy.Core.Services
         public async Task<ResumeViewModel> Create(ResumeViewModel model)
         {
             var entity = _resumeMapper.MapModel(model);
-            entity.EntryDate = DateTime.Now;
-            entity.UpdateDate = DateTime.Now;
+            entity.EntryDate = DateTime.UtcNow;
+            entity.UpdateDate = DateTime.UtcNow;
             var result = await _resumeRepository.Create(entity);
             await _unitOfWork.SaveChangesAsync();
             return _resumeViewModelMapper.MapModel(result);
@@ -99,7 +99,7 @@ namespace ResumeSpy.Core.Services
                 existingData.ResumeDetailCount = model.ResumeDetailCount;
                 existingData.ResumeImgPath = model.ResumeImgPath ?? string.Empty;
                 existingData.Title = model.Title ?? string.Empty;
-                existingData.UpdateDate = DateTime.Now;
+                existingData.UpdateDate = DateTime.UtcNow;
 
                 await _resumeRepository.Update(existingData);
                 await _unitOfWork.SaveChangesAsync();
