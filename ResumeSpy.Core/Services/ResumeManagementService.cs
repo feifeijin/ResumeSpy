@@ -14,19 +14,22 @@ namespace ResumeSpy.Core.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly ITranslationService _translationService;
         private readonly IImageGenerationService _imageGenerationService;
+        private readonly IGuestSessionService _guestSessionService;
 
         public ResumeManagementService(
             IResumeService resumeService,
             IResumeDetailService resumeDetailService,
             IUnitOfWork unitOfWork,
             ITranslationService translationService,
-            IImageGenerationService imageGenerationService)
+            IImageGenerationService imageGenerationService,
+            IGuestSessionService guestSessionService)
         {
             _resumeService = resumeService;
             _resumeDetailService = resumeDetailService;
             _unitOfWork = unitOfWork;
             _translationService = translationService;
             _imageGenerationService = imageGenerationService;
+            _guestSessionService = guestSessionService;
         }
 
         public async Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model, string? userId = null, Guid? guestSessionId = null, string? ipAddress = null)
@@ -73,6 +76,8 @@ namespace ResumeSpy.Core.Services
 
         private async Task<ResumeDetailViewModel> CreateResumeDetailWithNewResume(ResumeDetailViewModel model, string? userId = null, Guid? guestSessionId = null, string? ipAddress = null)
         {
+            var isGuest = guestSessionId.HasValue && string.IsNullOrEmpty(userId);
+            
             await _unitOfWork.BeginTransactionAsync();
             try
             {
@@ -105,6 +110,12 @@ namespace ResumeSpy.Core.Services
                 model.ResumeId = createdResume.Id;
                 model.Id = newResumeDetailId;
                 var result = await _resumeDetailService.Create(model);
+
+                // Increment guest session count AFTER successful resume creation
+                if (isGuest)
+                {
+                    await _guestSessionService.IncrementResumeCountAsync(guestSessionId!.Value);
+                }
 
                 // Save all changes within the transaction
                 await _unitOfWork.SaveChangesAsync();

@@ -76,16 +76,8 @@ namespace ResumeSpy.UI.Controllers
                 resumeDetailModel.CreateTime = DateTime.UtcNow.ToShortDateString();
                 resumeDetailModel.LastModifyTime = DateTime.UtcNow.ToShortDateString();
 
-                // Let ResumeManagementService handle resume creation with guest/user context
+                // ResumeManagementService handles resume creation and guest count increment atomically
                 var result = await _resumeManagementService.CreateResumeDetailAsync(resumeDetailModel, userId, guestSessionId, guestIp);
-
-                // Only increment guest count AFTER successful creation
-                if (IsFirstTimeResumeCreation(resumeDetailModel) && guestSessionId.HasValue && string.IsNullOrEmpty(userId))
-                {
-                    await _guestSessionService.IncrementResumeCountAsync(guestSessionId.Value);
-                    _logger.LogInformation("Guest session {GuestSessionId} resume count incremented", guestSessionId.Value);
-                }
-
                 return Ok(result);
             }
             catch (Exception ex)
