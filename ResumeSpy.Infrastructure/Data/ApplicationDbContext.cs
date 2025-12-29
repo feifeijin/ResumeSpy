@@ -109,6 +109,9 @@ namespace ResumeSpy.Infrastructure.Data
                 entity.HasIndex(e => e.GuestSessionId);
                 entity.HasIndex(e => new { e.UserId, e.GuestSessionId });
                 
+                entity.Property(e => e.ExpiresAt)
+                    .HasColumnType("timestamp");
+                
                 entity.HasOne(e => e.User)
                     .WithMany(u => u.Resumes)
                     .HasForeignKey(e => e.UserId)
