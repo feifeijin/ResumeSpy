@@ -151,6 +151,13 @@ namespace ResumeSpy.UI.Controllers
 
         private Guid? GetGuestSessionIdFromCookie()
         {
+            // First check if middleware set it in context items (fresh session from same request)
+            if (HttpContext.Items.TryGetValue("GuestSessionId", out var contextSessionId) && contextSessionId is Guid)
+            {
+                return (Guid)contextSessionId;
+            }
+
+            // Fall back to cookie for subsequent requests
             if (HttpContext.Request.Cookies.TryGetValue(GUEST_SESSION_COOKIE, out var sessionIdStr))
             {
                 if (Guid.TryParse(sessionIdStr, out var sessionId))
