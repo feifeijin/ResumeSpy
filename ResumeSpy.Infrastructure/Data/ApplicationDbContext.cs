@@ -27,13 +27,15 @@ namespace ResumeSpy.Infrastructure.Data
             ApplicationDbContextConfigurations.Configure(builder);
             // ApplicationDbContextConfigurations.SeedData(builder);
 
+            // Configure DateTime converter for PostgreSQL timestamptz
+            // Ensures all DateTime values are treated as UTC
             var dateTimeConverter = new ValueConverter<DateTime, DateTime>(
-                v => DateTime.SpecifyKind(v, DateTimeKind.Unspecified),
+                v => v.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(v, DateTimeKind.Utc) : v.ToUniversalTime(),
                 v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
             var nullableDateTimeConverter = new ValueConverter<DateTime?, DateTime?>(
-                v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Unspecified) : (DateTime?)null,
-                v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : (DateTime?)null);
+                v => v.HasValue ? (v.Value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v.Value.ToUniversalTime()) : null,
+                v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
 
             foreach (var entityType in builder.Model.GetEntityTypes())
             {
