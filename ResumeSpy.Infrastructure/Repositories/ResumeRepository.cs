@@ -21,5 +21,12 @@ namespace ResumeSpy.Infrastructure.Repositories
                 .Where(r => r.GuestSessionId == guestSessionId)
                 .ToListAsync();
         }
+
+        public async Task<List<Resume>> GetByUserIdAsync(string userId)
+        {
+            return await DbSet
+                .Where(r => r.UserId == userId)
+                .ToListAsync();
+        }
     }
 }

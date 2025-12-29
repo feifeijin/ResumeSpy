@@ -6,5 +6,6 @@ namespace ResumeSpy.Core.Interfaces.IRepositories
     public interface IResumeRepository:IBaseRepository<Resume>
     {
          Task<List<Resume>> GetByGuestSessionIdAsync(Guid guestSessionId);
+         Task<List<Resume>> GetByUserIdAsync(string userId);
     }
 }

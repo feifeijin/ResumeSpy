@@ -36,7 +36,13 @@ namespace ResumeSpy.UI.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ResumeViewModel>>> GetResumes()
         {
-            var resumes = (await _resumeService.GetResumes()).ToList().OrderByDescending(r => r.EntryDate);
+            var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var guestSessionId = HttpContext.GetGuestSessionId();
+            
+            var resumes = (await _resumeService.GetResumes(userId, guestSessionId))
+                .OrderByDescending(r => r.EntryDate)
+                .ToList();
+            
             return Ok(resumes);
         }
 
@@ -46,6 +52,20 @@ namespace ResumeSpy.UI.Controllers
             try
             {
                 var resume = await _resumeService.GetResume(id);
+                
+                // Authorization check
+                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var guestSessionId = HttpContext.GetGuestSessionId();
+                
+                bool isAuthorized = 
+                    (!string.IsNullOrEmpty(userId) && resume.UserId == userId) ||
+                    (guestSessionId.HasValue && resume.GuestSessionId == guestSessionId);
+                
+                if (!isAuthorized)
+                {
+                    return Forbid();
+                }
+                
                 return Ok(resume);
             }
             catch (Exception)
@@ -109,6 +129,21 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
+                var existingResume = await _resumeService.GetResume(id);
+                
+                // Authorization check
+                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var guestSessionId = HttpContext.GetGuestSessionId();
+                
+                bool isAuthorized = 
+                    (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
+                    (guestSessionId.HasValue && existingResume.GuestSessionId == guestSessionId);
+                
+                if (!isAuthorized)
+                {
+                    return Forbid();
+                }
+                
                 updatedResume.Id = id; // Ensure the ID matches the route parameter
                 await _resumeService.Update(updatedResume);
                 return Ok(updatedResume);
@@ -125,6 +160,20 @@ namespace ResumeSpy.UI.Controllers
             try
             {
                 var existingResume = await _resumeService.GetResume(id);
+                
+                // Authorization check
+                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var guestSessionId = HttpContext.GetGuestSessionId();
+                
+                bool isAuthorized = 
+                    (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
+                    (guestSessionId.HasValue && existingResume.GuestSessionId == guestSessionId);
+                
+                if (!isAuthorized)
+                {
+                    return Forbid();
+                }
+                
                 existingResume.Title = title;
                 await _resumeService.Update(existingResume);
                 return Ok(existingResume);
@@ -140,6 +189,21 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
+                var existingResume = await _resumeService.GetResume(id);
+                
+                // Authorization check
+                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var guestSessionId = HttpContext.GetGuestSessionId();
+                
+                bool isAuthorized = 
+                    (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
+                    (guestSessionId.HasValue && existingResume.GuestSessionId == guestSessionId);
+                
+                if (!isAuthorized)
+                {
+                    return Forbid();
+                }
+                
                 var clonedResume = await _resumeManagementService.CloneResumeAsync(id);
                 return CreatedAtAction(nameof(GetResume), new { id = clonedResume.Id }, clonedResume);
             }
@@ -155,6 +219,21 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
+                var existingResume = await _resumeService.GetResume(id);
+                
+                // Authorization check
+                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var guestSessionId = HttpContext.GetGuestSessionId();
+                
+                bool isAuthorized = 
+                    (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
+                    (guestSessionId.HasValue && existingResume.GuestSessionId == guestSessionId);
+                
+                if (!isAuthorized)
+                {
+                    return Forbid();
+                }
+                
                 await _resumeService.Delete(id);
                 return NoContent();
             }

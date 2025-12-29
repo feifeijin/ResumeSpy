@@ -75,9 +75,25 @@ namespace ResumeSpy.Core.Services
            return _resumeViewModelMapper.MapModel(entity);
         }
 
-        public async Task<IEnumerable<ResumeViewModel>> GetResumes()
+        public async Task<IEnumerable<ResumeViewModel>> GetResumes(string? userId = null, Guid? guestSessionId = null)
         {
-            return _resumeViewModelMapper.MapList(await _resumeRepository.GetAll());
+            IEnumerable<Resume> resumes;
+            
+            if (!string.IsNullOrEmpty(userId))
+            {
+                resumes = await _resumeRepository.GetByUserIdAsync(userId);
+            }
+            else if (guestSessionId.HasValue)
+            {
+                resumes = await _resumeRepository.GetByGuestSessionIdAsync(guestSessionId.Value);
+            }
+            else
+            {
+                // Return empty for unauthenticated requests without guest session
+                resumes = Enumerable.Empty<Resume>();
+            }
+            
+            return _resumeViewModelMapper.MapList(resumes);
 
         }
 
