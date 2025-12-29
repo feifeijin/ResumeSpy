@@ -1,4 +1,5 @@
 using ResumeSpy.Core.Entities.Business;
+using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.IRepositories;
 using ResumeSpy.Core.Interfaces.IServices;
 using System;
@@ -34,6 +35,23 @@ namespace ResumeSpy.Core.Services
 
         public async Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model, string? userId = null, Guid? guestSessionId = null, string? ipAddress = null)
         {
+            var isFirstTime = string.IsNullOrEmpty(model.ResumeId) || model.ResumeId == "undefined";
+            
+            // Validate guest quota for first-time resume creation
+            if (isFirstTime && string.IsNullOrEmpty(userId))
+            {
+                if (!guestSessionId.HasValue)
+                {
+                    throw new UnauthorizedException("Guest session not found.");
+                }
+                
+                var hasReachedLimit = await _guestSessionService.HasReachedResumeLimitAsync(guestSessionId.Value);
+                if (hasReachedLimit)
+                {
+                    throw new QuotaExceededException("Guest resume limit reached. Please register to create more resumes.");
+                }
+            }
+
             // Auto-detect language if it's empty or null
             if (string.IsNullOrWhiteSpace(model.Language) && !string.IsNullOrWhiteSpace(model.Content))
             {

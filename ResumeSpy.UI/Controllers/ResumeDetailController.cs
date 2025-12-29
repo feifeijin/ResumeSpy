@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ResumeSpy.Core.Entities.Business;
+using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.UI.Middlewares;
 using ResumeSpy.UI.Models;
@@ -66,19 +67,22 @@ namespace ResumeSpy.UI.Controllers
                 var guestSessionId = HttpContext.GetGuestSessionId();
                 var guestIp = HttpContext.GetGuestIpAddress();
 
-                // Handle first-time resume creation: validate guest limits
-                var validationResponse = await ValidateFirstTimeResumeCreationAsync(resumeDetailModel, userId, guestSessionId);
-                if (validationResponse != null)
-                {
-                    return validationResponse;
-                }
-
                 resumeDetailModel.CreateTime = DateTime.UtcNow.ToShortDateString();
                 resumeDetailModel.LastModifyTime = DateTime.UtcNow.ToShortDateString();
 
-                // ResumeManagementService handles resume creation and guest count increment atomically
+                // Service handles validation, creation, and guest count increment atomically
                 var result = await _resumeManagementService.CreateResumeDetailAsync(resumeDetailModel, userId, guestSessionId, guestIp);
                 return Ok(result);
+            }
+            catch (UnauthorizedException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized resume creation attempt");
+                return Unauthorized(new { error = ex.Message });
+            }
+            catch (QuotaExceededException ex)
+            {
+                _logger.LogWarning(ex, "Guest quota exceeded");
+                return StatusCode(403, new { error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -230,46 +234,6 @@ namespace ResumeSpy.UI.Controllers
                 _logger.LogError(ex, "Error occurred while synchronizing resume detail translations");
                 return StatusCode(500, "An error occurred while synchronizing resume detail translations");
             }
-        }
-
-        private bool IsFirstTimeResumeCreation(ResumeDetailViewModel model)
-        {
-            return string.IsNullOrEmpty(model.ResumeId) || model.ResumeId == "undefined";
-        }
-
-        private async Task<ActionResult?> ValidateFirstTimeResumeCreationAsync(ResumeDetailViewModel model, string? userId, Guid? guestSessionId)
-        {
-            if (!IsFirstTimeResumeCreation(model))
-            {
-                return null;
-            }
-
-            // Authenticated user - no further validation needed
-            if (!string.IsNullOrEmpty(userId))
-            {
-                _logger.LogInformation("User {UserId} creating resume", userId);
-                return null;
-            }
-
-            // Guest or no session
-            return await ValidateGuestResumeQuotaAsync(guestSessionId);
-        }
-
-        private async Task<ActionResult?> ValidateGuestResumeQuotaAsync(Guid? guestSessionId)
-        {
-            // Guest session not found - should not happen due to middleware
-            if (!guestSessionId.HasValue)
-            {
-                return Unauthorized(new { error = "Guest session not found." });
-            }
-
-            // Check if guest has reached resume limit
-            var hasReachedLimit = await _guestSessionService.HasReachedResumeLimitAsync(guestSessionId.Value);
-            if (hasReachedLimit)
-            {
-                return StatusCode(403, new { error = "Guest resume limit reached. Please register to create more resumes." });
-            }
-            return null;
         }
     }
 
