@@ -5,7 +5,7 @@ using ResumeSpy.UI.Models;
 namespace ResumeSpy.UI.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/guest-session")]
     public class GuestSessionController : ControllerBase
     {
         private readonly IGuestSessionService _guestSessionService;
