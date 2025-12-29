@@ -30,6 +30,14 @@ namespace ResumeSpy.Infrastructure.Services
         {
             try
             {
+                // First try to find an existing active session for this fingerprint
+                var existing = await _guestSessionRepository.GetActiveSessionByFingerprintAsync(ipAddress, userAgent);
+                if (existing != null)
+                {
+                    _logger.LogInformation($"Reusing existing guest session: {existing.Id} for IP: {ipAddress}");
+                    return existing;
+                }
+
                 var session = new GuestSession
                 {
                     Id = Guid.NewGuid(),

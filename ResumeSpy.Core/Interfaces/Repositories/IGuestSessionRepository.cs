@@ -12,5 +12,13 @@ namespace ResumeSpy.Core.Interfaces.IRepositories
         /// Gets all expired guest sessions
         /// </summary>
         Task<IEnumerable<GuestSession>> GetExpiredSessionsAsync();
+
+        /// <summary>
+        /// Gets the most recent active (non-converted, non-expired) guest session
+        /// matching the IP address and optional user agent.
+        /// </summary>
+        /// <param name="ipAddress">Client IP address fingerprint.</param>
+        /// <param name="userAgent">Optional user agent fingerprint. If null, match only by IP.</param>
+        Task<GuestSession?> GetActiveSessionByFingerprintAsync(string ipAddress, string? userAgent);
     }
 }

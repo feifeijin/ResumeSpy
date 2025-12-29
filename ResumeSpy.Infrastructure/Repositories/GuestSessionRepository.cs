@@ -20,10 +20,28 @@ namespace ResumeSpy.Infrastructure.Repositories
 
         public async Task<IEnumerable<GuestSession>> GetExpiredSessionsAsync()
         {
+            var now = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified);
             return await _dbContext.GuestSessions
                 .AsNoTracking()
-                .Where(x => x.ExpiresAt < DateTime.UtcNow)
+                .Where(x => x.ExpiresAt < now)
                 .ToListAsync();
+        }
+
+        public async Task<GuestSession?> GetActiveSessionByFingerprintAsync(string ipAddress, string? userAgent)
+        {
+            var now = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified);
+            var query = _dbContext.GuestSessions
+                .AsNoTracking()
+                .Where(x => x.ExpiresAt > now && !x.IsConverted && x.IpAddress == ipAddress);
+
+            if (!string.IsNullOrWhiteSpace(userAgent))
+            {
+                query = query.Where(x => x.UserAgent == userAgent);
+            }
+
+            return await query
+                .OrderByDescending(x => x.EntryDate)
+                .FirstOrDefaultAsync();
         }
     }
 }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using ResumeSpy.Core.Entities.General;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.UI.Models;
 
@@ -29,18 +30,21 @@ namespace ResumeSpy.UI.Controllers
                 var ipAddress = GetClientIpAddress();
                 var userAgent = request?.UserAgent ?? HttpContext.Request.Headers["User-Agent"].ToString();
 
-                var session = await _guestSessionService.CreateGuestSessionAsync(ipAddress, userAgent);
-
-                // Set HTTP-only, Secure cookie
-                var cookieOptions = new CookieOptions
+                // Reuse existing valid session if present; otherwise create/reuse via service
+                var existingSessionResult = await TryGetValidSessionAsync(ipAddress);
+                if (existingSessionResult.IsValid && existingSessionResult.Session != null)
                 {
-                    HttpOnly = true,
-                    Secure = true,
-                    SameSite = SameSiteMode.Strict,
-                    Expires = session.ExpiresAt
-                };
+                    SetGuestSessionCookie(existingSessionResult.Session.Id, existingSessionResult.Session.ExpiresAt);
+                    return Ok(new CreateGuestSessionResponse
+                    {
+                        SessionId = existingSessionResult.Session.Id,
+                        ExpiresAt = existingSessionResult.Session.ExpiresAt
+                    });
+                }
 
-                Response.Cookies.Append(GUEST_SESSION_COOKIE, session.Id.ToString(), cookieOptions);
+                // Create or reuse session via service (service reuses active session by fingerprint)
+                var session = await _guestSessionService.CreateGuestSessionAsync(ipAddress, userAgent);
+                SetGuestSessionCookie(session.Id, session.ExpiresAt);
 
                 return Ok(new CreateGuestSessionResponse
                 {
@@ -63,21 +67,14 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
-                var sessionId = GetGuestSessionIdFromCookie();
-                if (!sessionId.HasValue)
+                var validation = await GetValidatedSessionAsync();
+                if (validation.ErrorResult != null)
                 {
-                    return BadRequest(new { error = "No active guest session" });
+                    return validation.ErrorResult;
                 }
 
-                var isValid = await _guestSessionService.ValidateGuestSessionAsync(sessionId.Value, GetClientIpAddress());
-                if (!isValid)
-                {
-                    ClearGuestSessionCookie();
-                    return Unauthorized(new { error = "Guest session is invalid or expired" });
-                }
-
-                var count = await _guestSessionService.GetResumeCountAsync(sessionId.Value);
-                var hasReachedLimit = await _guestSessionService.HasReachedResumeLimitAsync(sessionId.Value);
+                var count = await _guestSessionService.GetResumeCountAsync(validation.SessionId);
+                var hasReachedLimit = await _guestSessionService.HasReachedResumeLimitAsync(validation.SessionId);
 
                 return Ok(new CheckResumeQuotaResponse
                 {
@@ -101,13 +98,13 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
-                var sessionId = GetGuestSessionIdFromCookie();
-                if (!sessionId.HasValue)
+                var validation = await GetValidatedSessionAsync();
+                if (validation.ErrorResult != null)
                 {
-                    return BadRequest(new { error = "No active guest session" });
+                    return validation.ErrorResult;
                 }
 
-                var session = await _guestSessionService.GetGuestSessionAsync(sessionId.Value);
+                var session = await _guestSessionService.GetGuestSessionAsync(validation.SessionId);
                 if (session == null)
                 {
                     ClearGuestSessionCookie();
@@ -168,6 +165,60 @@ namespace ResumeSpy.UI.Controllers
         private void ClearGuestSessionCookie()
         {
             Response.Cookies.Delete(GUEST_SESSION_COOKIE);
+        }
+
+        private void SetGuestSessionCookie(Guid sessionId, DateTime expiresAt)
+        {
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.None, // align with middleware to support SPA cross-origin
+                Expires = expiresAt,
+                Path = "/"
+            };
+
+            Response.Cookies.Append(GUEST_SESSION_COOKIE, sessionId.ToString(), cookieOptions);
+        }
+
+        private async Task<(bool IsValid, GuestSession? Session)> TryGetValidSessionAsync(string ipAddress)
+        {
+            var existingSessionId = GetGuestSessionIdFromCookie();
+            if (!existingSessionId.HasValue)
+            {
+                return (false, null);
+            }
+
+            var isValid = await _guestSessionService.ValidateGuestSessionAsync(existingSessionId.Value, ipAddress);
+            if (!isValid)
+            {
+                ClearGuestSessionCookie();
+                return (false, null);
+            }
+
+            var existingSession = await _guestSessionService.GetGuestSessionAsync(existingSessionId.Value);
+            return existingSession != null
+                ? (true, existingSession)
+                : (false, null);
+        }
+
+        private async Task<(bool IsValid, Guid SessionId, IActionResult? ErrorResult)> GetValidatedSessionAsync()
+        {
+            var sessionId = GetGuestSessionIdFromCookie();
+            if (!sessionId.HasValue)
+            {
+                return (false, Guid.Empty, BadRequest(new { error = "No active guest session" }));
+            }
+
+            var ipAddress = GetClientIpAddress();
+            var isValid = await _guestSessionService.ValidateGuestSessionAsync(sessionId.Value, ipAddress);
+            if (!isValid)
+            {
+                ClearGuestSessionCookie();
+                return (false, Guid.Empty, Unauthorized(new { error = "Guest session is invalid or expired" }));
+            }
+
+            return (true, sessionId.Value, null);
         }
 
         #endregion

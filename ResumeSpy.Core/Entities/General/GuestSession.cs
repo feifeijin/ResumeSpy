@@ -15,6 +15,7 @@ namespace ResumeSpy.Core.Entities.General
         public int ResumeCount { get; set; } = 0;
 
         [Required]
+        [Column(TypeName = "timestamp")]
         public DateTime ExpiresAt { get; set; }
 
         public bool IsConverted { get; set; } = false;
