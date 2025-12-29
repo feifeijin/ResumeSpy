@@ -14,10 +14,8 @@ namespace ResumeSpy.Core.Entities.General
         [Key]
         public T Id { get; set; } // Remove 'required'
 
-        [Column(TypeName = "timestamp")]
         public DateTime? EntryDate { get; set; }
 
-        [Column(TypeName = "timestamp")]
         public DateTime? UpdateDate { get; set; }
     }
 }

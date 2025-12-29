@@ -50,22 +50,6 @@ namespace ResumeSpy.Infrastructure.Data
                 }
             }
 
-            builder.Entity<Resume>()
-                .Property(e => e.EntryDate)
-                .HasColumnType("timestamp");
-
-            builder.Entity<Resume>()
-                .Property(e => e.UpdateDate)
-                .HasColumnType("timestamp");
-
-            builder.Entity<ResumeDetail>()
-            .Property(e => e.EntryDate)
-            .HasColumnType("timestamp");
-
-            builder.Entity<ResumeDetail>()
-                .Property(e => e.UpdateDate)
-                .HasColumnType("timestamp");
-
             builder.Entity<ApplicationUser>(entity =>
             {
                 entity.Property(e => e.DisplayName).HasMaxLength(128);
@@ -92,10 +76,6 @@ namespace ResumeSpy.Infrastructure.Data
                     .HasMaxLength(128);
                 entity.Property(e => e.RedirectUrl)
                     .HasMaxLength(1024);
-                entity.Property(e => e.ExpiresAtUtc)
-                    .HasColumnType("timestamp");
-                entity.Property(e => e.ConsumedAtUtc)
-                    .HasColumnType("timestamp");
                 entity.HasIndex(e => new { e.UserId, e.TokenHash }).IsUnique();
                 entity.HasOne(e => e.User)
                     .WithMany(u => u.EmailLoginTokens)
@@ -108,9 +88,6 @@ namespace ResumeSpy.Infrastructure.Data
                 entity.HasIndex(e => e.UserId);
                 entity.HasIndex(e => e.GuestSessionId);
                 entity.HasIndex(e => new { e.UserId, e.GuestSessionId });
-                
-                entity.Property(e => e.ExpiresAt)
-                    .HasColumnType("timestamp");
                 
                 entity.HasOne(e => e.User)
                     .WithMany(u => u.Resumes)
@@ -131,9 +108,6 @@ namespace ResumeSpy.Infrastructure.Data
                 
                 entity.Property(e => e.UserAgent)
                     .HasMaxLength(512);
-                
-                entity.Property(e => e.ExpiresAt)
-                    .HasColumnType("timestamp");
                 
                 entity.HasIndex(e => e.ExpiresAt);
                 entity.HasIndex(e => e.IsConverted);

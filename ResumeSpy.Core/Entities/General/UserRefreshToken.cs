@@ -20,13 +20,10 @@ namespace ResumeSpy.Core.Entities.General
         public bool IsRevoked { get; set; }
         public bool IsUsed { get; set; }
 
-        [Column(TypeName = "timestamp")]
         public DateTime ExpiresAt { get; set; }
 
-        [Column(TypeName = "timestamp")]
         public DateTime CreatedAt { get; set; }
 
-        [Column(TypeName = "timestamp")]
         public DateTime? RevokedAt { get; set; }
 
         [ForeignKey(nameof(UserId))]
