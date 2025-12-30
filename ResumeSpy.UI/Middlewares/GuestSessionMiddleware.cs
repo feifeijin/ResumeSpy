@@ -36,6 +36,7 @@ namespace ResumeSpy.UI.Middlewares
             if (context.Request.Cookies.TryGetValue(GUEST_SESSION_COOKIE, out var sessionIdStr) &&
                 Guid.TryParse(sessionIdStr, out var parsedId))
             {
+                // Pass IP for security logging only, not for validation
                 var isValid = await guestSessionService.ValidateGuestSessionAsync(parsedId, ipAddress);
                 if (isValid)
                 {
@@ -52,6 +53,20 @@ namespace ResumeSpy.UI.Middlewares
             // Auto-create if no valid session
             if (!sessionId.HasValue)
             {
+                // Check rate limiting before creating new session
+                var exceededLimit = await guestSessionService.HasExceededSessionRateLimitAsync(ipAddress);
+                if (exceededLimit)
+                {
+                    _logger.LogWarning($"Session creation blocked - IP {ipAddress} exceeded rate limit");
+                    context.Response.StatusCode = 429; // Too Many Requests
+                    await context.Response.WriteAsJsonAsync(new 
+                    { 
+                        error = "Too many guest sessions created from your network. Please sign up for an account.",
+                        code = "SESSION_RATE_LIMIT_EXCEEDED"
+                    });
+                    return;
+                }
+
                 var newSession = await guestSessionService.CreateGuestSessionAsync(ipAddress, userAgent);
                 sessionId = newSession.Id;
 

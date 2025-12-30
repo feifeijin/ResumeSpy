@@ -17,9 +17,10 @@ namespace ResumeSpy.Core.Interfaces.IServices
         Task<GuestSession?> GetGuestSessionAsync(Guid sessionId);
 
         /// <summary>
-        /// Validates if a guest session is still active and IP matches
+        /// Validates if a guest session is still active (not expired, not converted)
+        /// IP is optional and only used for security logging, not validation
         /// </summary>
-        Task<bool> ValidateGuestSessionAsync(Guid sessionId, string ipAddress);
+        Task<bool> ValidateGuestSessionAsync(Guid sessionId, string? currentIpAddress = null);
 
         /// <summary>
         /// Increments the resume count for a guest session
@@ -50,5 +51,17 @@ namespace ResumeSpy.Core.Interfaces.IServices
         /// Checks if a guest session has reached the resume limit
         /// </summary>
         Task<bool> HasReachedResumeLimitAsync(Guid sessionId);
+
+        /// <summary>
+        /// Checks if an IP address has exceeded the rate limit for session creation
+        /// Returns true if limit exceeded (should reject), false if within limit
+        /// </summary>
+        Task<bool> HasExceededSessionRateLimitAsync(string ipAddress);
+
+        /// <summary>
+        /// Checks if an IP address has exceeded the rate limit for resume creation across all sessions
+        /// Returns true if limit exceeded (should reject), false if within limit
+        /// </summary>
+        Task<bool> HasExceededResumeRateLimitAsync(string ipAddress);
     }
 }

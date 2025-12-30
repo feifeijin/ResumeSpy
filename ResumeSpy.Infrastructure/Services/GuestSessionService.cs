@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ResumeSpy.Core.Entities.General;
 using ResumeSpy.Core.Interfaces.IRepositories;
 using ResumeSpy.Core.Interfaces.IServices;
+using ResumeSpy.Infrastructure.Configuration;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,40 +13,38 @@ namespace ResumeSpy.Infrastructure.Services
     public class GuestSessionService : IGuestSessionService
     {
         private readonly IGuestSessionRepository _guestSessionRepository;
+        private readonly IResumeRepository _resumeRepository;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<GuestSessionService> _logger;
-        private const int MAX_RESUME_COUNT = 1;
-        private const int SESSION_EXPIRY_DAYS = 30;
+        private readonly GuestSessionSettings _settings;
 
         public GuestSessionService(
             IGuestSessionRepository guestSessionRepository,
+            IResumeRepository resumeRepository,
             IUnitOfWork unitOfWork,
-            ILogger<GuestSessionService> logger)
+            ILogger<GuestSessionService> logger,
+            IOptions<GuestSessionSettings> settings)
         {
             _guestSessionRepository = guestSessionRepository;
+            _resumeRepository = resumeRepository;
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _settings = settings.Value;
         }
 
         public async Task<GuestSession> CreateGuestSessionAsync(string ipAddress, string? userAgent)
         {
             try
             {
-                // First try to find an existing active session for this fingerprint
-                var existing = await _guestSessionRepository.GetActiveSessionByFingerprintAsync(ipAddress, userAgent);
-                if (existing != null)
-                {
-                    _logger.LogInformation($"Reusing existing guest session: {existing.Id} for IP: {ipAddress}");
-                    return existing;
-                }
-
+                // Always create a new session - each browser gets unique session via cookie
+                // This prevents session collision when multiple users share same IP+UserAgent
                 var session = new GuestSession
                 {
                     Id = Guid.NewGuid(),
-                    IpAddress = ipAddress,
-                    UserAgent = userAgent,
+                    IpAddress = ipAddress,    // Stored for audit/security, not for reuse
+                    UserAgent = userAgent,    // Stored for audit/security, not for reuse
                     ResumeCount = 0,
-                    ExpiresAt = DateTime.UtcNow.AddDays(SESSION_EXPIRY_DAYS),
+                    ExpiresAt = DateTime.UtcNow.AddDays(_settings.SessionExpiryDays),
                     IsConverted = false,
                     EntryDate = DateTime.UtcNow,
                     UpdateDate = DateTime.UtcNow
@@ -68,7 +68,7 @@ namespace ResumeSpy.Infrastructure.Services
             return await _guestSessionRepository.GetById<Guid>(sessionId);
         }
 
-        public async Task<bool> ValidateGuestSessionAsync(Guid sessionId, string ipAddress)
+        public async Task<bool> ValidateGuestSessionAsync(Guid sessionId, string? currentIpAddress = null)
         {
             try
             {
@@ -92,12 +92,11 @@ namespace ResumeSpy.Infrastructure.Services
                     return false;
                 }
 
-                // Basic IP validation (can be enhanced)
-                if (session.IpAddress != ipAddress)
+                // Log IP changes for security monitoring (but don't invalidate session)
+                // This supports mobile users switching networks and VPN usage
+                if (currentIpAddress != null && session.IpAddress != currentIpAddress)
                 {
-                    _logger.LogWarning($"Guest session IP mismatch: {sessionId}. Expected: {session.IpAddress}, Got: {ipAddress}");
-                    // Note: You might want to be more lenient here for corporate networks with dynamic IPs
-                    // For now, we'll allow it but log the mismatch
+                    _logger.LogInformation($"Guest session {sessionId} IP changed from {session.IpAddress} to {currentIpAddress}. This is normal for mobile users.");
                 }
 
                 return true;
@@ -166,7 +165,67 @@ namespace ResumeSpy.Infrastructure.Services
         public async Task<bool> HasReachedResumeLimitAsync(Guid sessionId)
         {
             var count = await GetResumeCountAsync(sessionId);
-            return count >= MAX_RESUME_COUNT;
+            return count >= _settings.MaxResumePerSession;
+        }
+
+        public async Task<bool> HasExceededSessionRateLimitAsync(string ipAddress)
+        {
+            if (!_settings.EnableRateLimiting)
+            {
+                return false;
+            }
+
+            try
+            {
+                var since = DateTime.UtcNow.AddDays(-1); // Last 24 hours
+                var sessionCount = await _guestSessionRepository.GetSessionCountByIpSinceAsync(ipAddress, since);
+
+                if (sessionCount >= _settings.MaxSessionsPerIpPerDay)
+                {
+                    _logger.LogWarning($"IP {ipAddress} has exceeded session rate limit: {sessionCount}/{_settings.MaxSessionsPerIpPerDay} sessions in 24h");
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error checking session rate limit: {ex.Message}");
+                // On error, allow the operation to proceed (fail open)
+                return false;
+            }
+        }
+
+        public async Task<bool> HasExceededResumeRateLimitAsync(string ipAddress)
+        {
+            if (!_settings.EnableRateLimiting)
+            {
+                return false;
+            }
+
+            try
+            {
+                var since = DateTime.UtcNow.AddDays(-1); // Last 24 hours
+                var sessions = await _guestSessionRepository.GetSessionsByIpSinceAsync(ipAddress, since);
+                var sessionIds = sessions.Select(s => s.Id).ToList();
+
+                // Count total resumes created from this IP across all sessions
+                var totalResumes = await _resumeRepository.CountGuestResumesBySessionsAsync(sessionIds);
+
+                if (totalResumes >= _settings.MaxResumesPerIpPerDay)
+                {
+                    _logger.LogWarning($"IP {ipAddress} has exceeded resume rate limit: {totalResumes}/{_settings.MaxResumesPerIpPerDay} resumes in 24h across {sessions.Count()} sessions");
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error checking resume rate limit: {ex.Message}");
+                // On error, allow the operation to proceed (fail open)
+                return false;
+            }
         }
 
         public async Task ConvertGuestSessionAsync(Guid sessionId, string userId)

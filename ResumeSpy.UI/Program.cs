@@ -82,6 +82,7 @@ builder.Services.AddLogging();
 builder.Services.Configure<TranslatorSettings>(builder.Configuration.GetSection("TranslatorSettings"));
 builder.Services.Configure<ExternalAuthSettings>(builder.Configuration.GetSection("ExternalAuth"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
+builder.Services.Configure<GuestSessionSettings>(builder.Configuration.GetSection("GuestSessionSettings"));
 
 var jwtSettingsSection = builder.Configuration.GetSection("Jwt");
 builder.Services.Configure<JwtSettings>(jwtSettingsSection);

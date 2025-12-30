@@ -5,3 +5,8 @@ ResumeSpy.UI/appsettings.Development.json
 
 # Ignore generated images
 ResumeSpy.UI/wwwroot/images/
+
+# Local development scripts (not for GitHub)
+Scripts/LocalDev/
+*.local.sql
+*.dev-only.sql

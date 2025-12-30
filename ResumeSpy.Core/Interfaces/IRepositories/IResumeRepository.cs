@@ -7,5 +7,11 @@ namespace ResumeSpy.Core.Interfaces.IRepositories
     {
          Task<List<Resume>> GetByGuestSessionIdAsync(Guid guestSessionId);
          Task<List<Resume>> GetByUserIdAsync(string userId);
+         
+         /// <summary>
+         /// Counts the total number of guest resumes across multiple sessions
+         /// Used for IP-based rate limiting
+         /// </summary>
+         Task<int> CountGuestResumesBySessionsAsync(List<Guid> sessionIds);
     }
 }

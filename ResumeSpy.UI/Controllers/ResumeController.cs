@@ -93,24 +93,41 @@ namespace ResumeSpy.UI.Controllers
                     return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
                 }
 
-                // Guest flow: enforce limit
+                // Guest flow: enforce limits
                 if (guestSessionId.HasValue)
                 {
+                    var ipAddress = HttpContext.GetGuestIpAddress();
+
+                    // Check per-session limit
                     var hasReachedLimit = await _guestSessionService.HasReachedResumeLimitAsync(guestSessionId.Value);
                     if (hasReachedLimit)
                     {
                         return StatusCode(403, new { error = "Guest resume limit reached. Please register to create more resumes." });
                     }
 
+                    // Check IP-based rate limiting (prevents incognito abuse)
+                    if (!string.IsNullOrEmpty(ipAddress))
+                    {
+                        var exceededResumeLimit = await _guestSessionService.HasExceededResumeRateLimitAsync(ipAddress);
+                        if (exceededResumeLimit)
+                        {
+                            _logger.LogWarning($"Guest resume creation blocked - IP {ipAddress} exceeded rate limit");
+                            return StatusCode(429, new { 
+                                error = "Resume creation limit exceeded for your network. Please sign up for unlimited access.",
+                                code = "RATE_LIMIT_EXCEEDED"
+                            });
+                        }
+                    }
+
                     resume.IsGuest = true;
                     resume.GuestSessionId = guestSessionId.Value;
-                    resume.CreatedIpAddress = HttpContext.GetGuestIpAddress();
+                    resume.CreatedIpAddress = ipAddress;
                     resume.ExpiresAt = DateTime.UtcNow.AddDays(30);
 
                     var createdResume = await _resumeService.Create(resume);
                     await _guestSessionService.IncrementResumeCountAsync(guestSessionId.Value);
 
-                    _logger.LogInformation($"Guest resume created: {createdResume.Id}");
+                    _logger.LogInformation($"Guest resume created: {createdResume.Id} from session {guestSessionId.Value}");
                     return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
                 }
 

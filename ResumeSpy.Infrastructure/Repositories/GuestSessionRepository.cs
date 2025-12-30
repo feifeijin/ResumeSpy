@@ -41,5 +41,22 @@ namespace ResumeSpy.Infrastructure.Repositories
                 .OrderByDescending(x => x.EntryDate)
                 .FirstOrDefaultAsync();
         }
+
+        public async Task<int> GetSessionCountByIpSinceAsync(string ipAddress, DateTime since)
+        {
+            return await _dbContext.GuestSessions
+                .AsNoTracking()
+                .Where(x => x.IpAddress == ipAddress && x.EntryDate >= since)
+                .CountAsync();
+        }
+
+        public async Task<IEnumerable<GuestSession>> GetSessionsByIpSinceAsync(string ipAddress, DateTime since)
+        {
+            return await _dbContext.GuestSessions
+                .AsNoTracking()
+                .Where(x => x.IpAddress == ipAddress && x.EntryDate >= since)
+                .OrderByDescending(x => x.EntryDate)
+                .ToListAsync();
+        }
     }
 }
