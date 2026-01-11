@@ -1,0 +1,150 @@
+name: CD - Continuous Deployment
+
+# Trigger this workflow on pushes to main (DEV) or release branches (PROD)
+on:
+  push:
+    branches: 
+      - main
+      - 'release/**'
+
+# Prevent concurrent deployments to the same environment
+concurrency: 
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false  # Don't cancel deployments, queue them instead
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    
+    # Set environment name based on branch
+    environment: 
+      name: ${{ github.ref == 'refs/heads/main' && 'DEV' || 'PROD' }}
+    
+    steps:
+      # Step 1: Check out the code
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Step 2: Set up .NET 9.0 SDK
+      - name: Setup .NET 9.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      
+      # Step 3: Restore dependencies
+      - name: Restore dependencies
+        run: dotnet restore ResumeSpy.sln
+      
+      # Step 4: Build the solution in Release mode
+      - name: Build solution
+        run: dotnet build ResumeSpy.sln --configuration Release --no-restore
+      
+      # Step 5: Run tests
+      - name: Run tests
+        run: dotnet test ResumeSpy.sln --configuration Release --no-build --verbosity normal
+      
+      # Step 6: Publish application (prepare deployment artifacts)
+      - name: Publish application
+        run: |
+          dotnet publish ResumeSpy.UI/ResumeSpy.UI.csproj \
+            --configuration Release \
+            --no-build \
+            --output ./publish
+      
+      # Step 7: Deploy to DEV (runs only on main branch)
+      - name: Deploy to DEV
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "🚀 Deploying to DEV environment..."
+          echo ""
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo ""
+          echo "📦 Deployment artifacts ready in ./publish"
+          echo ""
+          echo "⚠️  DEPLOYMENT STUB - This is a placeholder implementation"
+          echo ""
+          echo "To implement actual deployment, you would:"
+          echo "  1. Configure deployment target (Azure, AWS, Railway, Fly.io, etc.)"
+          echo "  2. Set up secrets in GitHub:"
+          echo "     - DEV_DEPLOY_TOKEN (authentication)"
+          echo "     - DEV_CONNECTION_STRING (database)"
+          echo "     - DEV_JWT_SIGNING_KEY (app secret)"
+          echo "  3. Use deployment action or CLI tool"
+          echo ""
+          echo "Example deployment commands:"
+          echo "  # Azure App Service:"
+          echo "  # az webapp deploy --resource-group <rg> --name <app> --src-path ./publish"
+          echo ""
+          echo "  # Railway:"
+          echo "  # railway up --service backend --environment dev"
+          echo ""
+          echo "  # Docker + SSH:"
+          echo "  # docker build -t resumespy:${{ github.sha }} ."
+          echo "  # docker push registry/resumespy:${{ github.sha }}"
+          echo "  # ssh deploy@server 'docker pull && docker restart backend'"
+          echo ""
+          echo "✅ DEV deployment stub completed"
+        env:
+          # Document expected secrets (not used in stub)
+          DEPLOY_TOKEN: ${{ secrets.DEV_DEPLOY_TOKEN }}
+          CONNECTION_STRING: ${{ secrets.DEV_CONNECTION_STRING }}
+      
+      # Step 8: Deploy to PROD (runs only on release branches)
+      - name: Deploy to PROD
+        if: startsWith(github.ref, 'refs/heads/release/')
+        run: |
+          echo "🚀 Deploying to PROD environment..."
+          echo ""
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo ""
+          echo "📦 Deployment artifacts ready in ./publish"
+          echo ""
+          echo "⚠️  DEPLOYMENT STUB - This is a placeholder implementation"
+          echo ""
+          echo "To implement actual deployment, you would:"
+          echo "  1. Configure production deployment target"
+          echo "  2. Set up secrets in GitHub:"
+          echo "     - PROD_DEPLOY_TOKEN (authentication)"
+          echo "     - PROD_CONNECTION_STRING (database)"
+          echo "     - PROD_JWT_SIGNING_KEY (app secret)"
+          echo "     - PROD_GOOGLE_CLIENT_ID (OAuth)"
+          echo "     - PROD_GITHUB_CLIENT_SECRET (OAuth)"
+          echo "  3. Add manual approval requirement (GitHub Environments)"
+          echo "  4. Add health check / smoke test after deployment"
+          echo "  5. Add rollback mechanism"
+          echo ""
+          echo "⚠️  PRODUCTION DEPLOYMENT REQUIRES:"
+          echo "  - Manual approval gate (configure in GitHub Environment settings)"
+          echo "  - Database migration strategy"
+          echo "  - Zero-downtime deployment approach"
+          echo "  - Monitoring and alerting"
+          echo ""
+          echo "✅ PROD deployment stub completed"
+        env:
+          # Document expected secrets (not used in stub)
+          DEPLOY_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
+          CONNECTION_STRING: ${{ secrets.PROD_CONNECTION_STRING }}
+      
+      # Step 9: Deployment summary
+      - name: Deployment Summary
+        if: success()
+        run: |
+          echo "✅ Deployment workflow completed successfully"
+          echo ""
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "Environment: DEV"
+            echo "Status: Deployed (stub)"
+          else
+            echo "Environment: PROD"
+            echo "Status: Deployed (stub)"
+          fi
+          echo ""
+          echo "Next steps:"
+          echo "  1. Implement actual deployment mechanism"
+          echo "  2. Configure secrets in repository settings"
+          echo "  3. Set up environment protection rules"

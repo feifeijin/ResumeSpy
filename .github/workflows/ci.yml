@@ -1,0 +1,51 @@
+name: CI - Pull Request Validation
+
+# Trigger this workflow on pull requests targeting main or release branches
+on:
+  pull_request:
+    branches: 
+      - main
+      - 'release/**'
+
+# Cancel in-progress CI runs for the same PR when new commits are pushed
+concurrency: 
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Step 1: Check out the code
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Step 2: Set up .NET 9.0 SDK
+      - name: Setup .NET 9.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      
+      # Step 3: Restore dependencies
+      - name: Restore dependencies
+        run: dotnet restore ResumeSpy.sln
+      
+      # Step 4: Build the solution in Release mode
+      - name: Build solution
+        run: dotnet build ResumeSpy.sln --configuration Release --no-restore
+      
+      # Step 5: Run tests (if any exist)
+      # This will succeed even if no tests are found, but will fail if tests exist and fail
+      - name: Run tests
+        run: dotnet test ResumeSpy.sln --configuration Release --no-build --verbosity normal
+      
+      # Step 6: Report status
+      - name: CI Summary
+        if: success()
+        run: |
+          echo "✅ CI passed successfully"
+          echo "- Build completed"
+          echo "- All tests passed (or no tests found)"
+          echo "- Code is ready to merge"
