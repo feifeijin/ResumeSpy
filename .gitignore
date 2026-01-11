@@ -10,3 +10,7 @@ ResumeSpy.UI/wwwroot/images/
 Scripts/LocalDev/
 *.local.sql
 *.dev-only.sql
+
+# CI/CD artifacts
+/publish
+*.env
