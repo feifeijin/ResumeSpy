@@ -1,0 +1,14 @@
+.git
+.github
+.vscode
+**/bin
+**/obj
+**/*.user
+**/*.suo
+**/*.nupkg
+**/*.snupkg
+**/node_modules
+**/dist
+**/coverage
+Dockerfile
+README.md
