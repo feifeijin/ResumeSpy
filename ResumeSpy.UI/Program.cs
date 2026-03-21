@@ -1,5 +1,4 @@
 using System;
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -92,10 +91,11 @@ builder.Services.Configure<AnonymousUserSettings>(builder.Configuration.GetSecti
 // Supabase JWT validation
 var supabaseUrl = builder.Configuration["Supabase:Url"]
     ?? throw new InvalidOperationException("Supabase:Url is not configured.");
-var supabaseJwtSecret = builder.Configuration["Supabase:JwtSecret"]
-    ?? throw new InvalidOperationException("Supabase:JwtSecret is not configured.");
 
-var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(supabaseJwtSecret));
+// Fetch JWKS from Supabase at startup for ES256 key validation
+using var jwksHttpClient = new HttpClient();
+var jwksJson = jwksHttpClient.GetStringAsync($"{supabaseUrl}/auth/v1/.well-known/jwks.json").GetAwaiter().GetResult();
+var jsonWebKeySet = new JsonWebKeySet(jwksJson);
 
 builder.Services
     .AddAuthentication(options =>
@@ -114,10 +114,10 @@ builder.Services
             ValidateLifetime = true,
             ValidIssuer = $"{supabaseUrl}/auth/v1",
             ValidAudience = "authenticated",
-            IssuerSigningKey = signingKey,
             ClockSkew = TimeSpan.Zero,
-            NameClaimType = "email",
-            RoleClaimType = "role"
+            NameClaimType = "sub",
+            RoleClaimType = "role",
+            IssuerSigningKeys = jsonWebKeySet.GetSigningKeys()
         };
     });
 
@@ -175,8 +175,9 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseAnonymousUserMiddleware();
 app.UseAuthentication();
+app.UseEnsureLocalUser();
+app.UseAnonymousUserMiddleware();
 app.UseAuthorization();
 
 app.MapControllers();
