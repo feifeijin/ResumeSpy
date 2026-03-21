@@ -102,6 +102,15 @@ namespace ResumeSpy.Core.Services
                 var newResumeId = Guid.NewGuid().ToString();
                 var newResumeDetailId = Guid.NewGuid().ToString();
 
+                if (isGuest)
+                {
+                    var acquired = await _guestSessionService.TryAcquireResumeSlotAsync(guestSessionId!.Value);
+                    if (!acquired)
+                    {
+                        throw new QuotaExceededException("Guest resume limit reached. Please register to create more resumes.");
+                    }
+                }
+
                 // Generate thumbnail before creating entities
                 if (!string.IsNullOrWhiteSpace(model.Content))
                 {
@@ -128,12 +137,6 @@ namespace ResumeSpy.Core.Services
                 model.ResumeId = createdResume.Id;
                 model.Id = newResumeDetailId;
                 var result = await _resumeDetailService.Create(model);
-
-                // Increment guest session count AFTER successful resume creation
-                if (isGuest)
-                {
-                    await _guestSessionService.IncrementResumeCountAsync(guestSessionId!.Value);
-                }
 
                 // Save all changes within the transaction
                 await _unitOfWork.SaveChangesAsync();

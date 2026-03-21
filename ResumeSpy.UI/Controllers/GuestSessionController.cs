@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using ResumeSpy.Core.Entities.General;
 using ResumeSpy.Core.Interfaces.IServices;
+using ResumeSpy.Infrastructure.Configuration;
 using ResumeSpy.UI.Models;
 
 namespace ResumeSpy.UI.Controllers
@@ -11,12 +13,17 @@ namespace ResumeSpy.UI.Controllers
     {
         private readonly IGuestSessionService _guestSessionService;
         private readonly ILogger<GuestSessionController> _logger;
+        private readonly GuestSessionSettings _guestSessionSettings;
         private const string GUEST_SESSION_COOKIE = "X-Guest-Session-Id";
 
-        public GuestSessionController(IGuestSessionService guestSessionService, ILogger<GuestSessionController> logger)
+        public GuestSessionController(
+            IGuestSessionService guestSessionService,
+            ILogger<GuestSessionController> logger,
+            IOptions<GuestSessionSettings> guestSessionSettings)
         {
             _guestSessionService = guestSessionService;
             _logger = logger;
+            _guestSessionSettings = guestSessionSettings.Value;
         }
 
         /// <summary>
@@ -79,7 +86,7 @@ namespace ResumeSpy.UI.Controllers
                 return Ok(new CheckResumeQuotaResponse
                 {
                     CurrentCount = count,
-                    MaxAllowed = 1,
+                    MaxAllowed = _guestSessionSettings.MaxResumePerSession,
                     CanCreateResume = !hasReachedLimit
                 });
             }

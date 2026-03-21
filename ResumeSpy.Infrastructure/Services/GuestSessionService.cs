@@ -234,6 +234,54 @@ namespace ResumeSpy.Infrastructure.Services
             }
         }
 
+        public async Task<bool> TryAcquireResumeSlotAsync(Guid sessionId)
+        {
+            try
+            {
+                // IMPORTANT: This method is intended to run inside an active transaction.
+                // It uses row-level locking to prevent concurrent over-allocation.
+                var session = await _guestSessionRepository.GetByIdForUpdateAsync(sessionId);
+                if (session == null)
+                {
+                    _logger.LogWarning($"Session {sessionId} not found in TryAcquireResumeSlotAsync");
+                    return false;
+                }
+
+                if (session.ExpiresAt < DateTime.UtcNow || session.IsConverted)
+                {
+                    _logger.LogWarning($"Session {sessionId} is invalid for slot acquisition (expired or converted)");
+                    return false;
+                }
+
+                // Reconcile against authoritative resume count to guard against stale counters.
+                var actualCount = (await _resumeRepository.GetByGuestSessionIdAsync(sessionId)).Count;
+                var effectiveCount = session.ResumeCount;
+
+                if (session.ResumeCount != actualCount)
+                {
+                    effectiveCount = actualCount;
+                    session.ResumeCount = actualCount;
+                }
+
+                if (effectiveCount >= _settings.MaxResumePerSession)
+                {
+                    return false;
+                }
+
+                session.ResumeCount = effectiveCount + 1;
+                session.UpdateDate = DateTime.UtcNow;
+                await _guestSessionRepository.Update(session);
+                await _unitOfWork.SaveChangesAsync();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error acquiring resume slot for session {sessionId}: {ex.Message}");
+                throw;
+            }
+        }
+
         public async Task<bool> HasExceededSessionRateLimitAsync(string ipAddress)
         {
             if (!_settings.EnableRateLimiting)

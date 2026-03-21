@@ -53,6 +53,13 @@ namespace ResumeSpy.Core.Interfaces.IServices
         Task<bool> HasReachedResumeLimitAsync(Guid sessionId);
 
         /// <summary>
+        /// Atomically acquires one resume creation slot for the session when under limit.
+        /// Returns false when the session is invalid or has already reached the configured limit.
+        /// Must be executed inside an active transaction for proper concurrency safety.
+        /// </summary>
+        Task<bool> TryAcquireResumeSlotAsync(Guid sessionId);
+
+        /// <summary>
         /// Checks if an IP address has exceeded the rate limit for session creation
         /// Returns true if limit exceeded (should reject), false if within limit
         /// </summary>

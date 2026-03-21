@@ -55,5 +55,12 @@ namespace ResumeSpy.Infrastructure.Repositories
                 .OrderByDescending(x => x.EntryDate)
                 .ToListAsync();
         }
+
+        public async Task<GuestSession?> GetByIdForUpdateAsync(Guid sessionId)
+        {
+            return await _dbContext.GuestSessions
+                .FromSqlInterpolated($"SELECT * FROM \"GuestSessions\" WHERE \"Id\" = {sessionId} FOR UPDATE")
+                .FirstOrDefaultAsync();
+        }
     }
 }

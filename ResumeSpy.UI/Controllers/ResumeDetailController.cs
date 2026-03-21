@@ -20,6 +20,7 @@ namespace ResumeSpy.UI.Controllers
         private readonly IMemoryCache _memoryCache;
         private readonly ITranslationService _translationService;
         private readonly IResumeManagementService _resumeManagementService;
+        private readonly IResumeService _resumeService;
 
         public ResumeDetailController(
             ILogger<ResumeDetailController> logger,
@@ -27,7 +28,8 @@ namespace ResumeSpy.UI.Controllers
             IGuestSessionService guestSessionService,
             IMemoryCache memoryCache,
             ITranslationService translationService,
-            IResumeManagementService resumeManagementService)
+            IResumeManagementService resumeManagementService,
+            IResumeService resumeService)
         {
             _logger = logger;
             _resumeDetailService = resumeDetailService;
@@ -35,6 +37,7 @@ namespace ResumeSpy.UI.Controllers
             _memoryCache = memoryCache;
             _translationService = translationService;
             _resumeManagementService = resumeManagementService;
+            _resumeService = resumeService;
         }
 
         [HttpGet]
@@ -151,6 +154,20 @@ namespace ResumeSpy.UI.Controllers
             if (existingDetail == null)
             {
                 return NotFound();
+            }
+
+            // Authorization: only resume owner (user) or matching guest session can copy.
+            var existingResume = await _resumeService.GetResume(existingDetail.ResumeId);
+            var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var guestSessionId = HttpContext.GetGuestSessionId();
+
+            var isAuthorized =
+                (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
+                (guestSessionId.HasValue && existingResume.GuestSessionId == guestSessionId);
+
+            if (!isAuthorized)
+            {
+                return Forbid();
             }
 
             string translatedContent = await _translationService.TranslateTextAsync(

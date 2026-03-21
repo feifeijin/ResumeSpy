@@ -35,5 +35,11 @@ namespace ResumeSpy.Core.Interfaces.IRepositories
         /// <param name="ipAddress">Client IP address</param>
         /// <param name="since">Start of time window</param>
         Task<IEnumerable<GuestSession>> GetSessionsByIpSinceAsync(string ipAddress, DateTime since);
+
+        /// <summary>
+        /// Gets a guest session by ID and acquires a row-level update lock for transactional consistency.
+        /// </summary>
+        /// <param name="sessionId">Guest session ID.</param>
+        Task<GuestSession?> GetByIdForUpdateAsync(Guid sessionId);
     }
 }

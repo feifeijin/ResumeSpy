@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ResumeSpy.Core.Entities.Business;
 using ResumeSpy.Core.Exceptions;
+using ResumeSpy.Core.Interfaces.IRepositories;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.UI.Middlewares;
 using System.Security.Claims;
@@ -18,6 +19,7 @@ namespace ResumeSpy.UI.Controllers
         private readonly IResumeService _resumeService;
         private readonly IResumeManagementService _resumeManagementService;
         private readonly IGuestSessionService _guestSessionService;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IMemoryCache _memoryCache;
 
         public ResumeController(
@@ -25,12 +27,14 @@ namespace ResumeSpy.UI.Controllers
             IResumeService resumeService, 
             IResumeManagementService resumeManagementService,
             IGuestSessionService guestSessionService,
+            IUnitOfWork unitOfWork,
             IMemoryCache memoryCache)
         {
             _logger = logger;
             _resumeService = resumeService;
             _resumeManagementService = resumeManagementService;
             _guestSessionService = guestSessionService;
+            _unitOfWork = unitOfWork;
             _memoryCache = memoryCache;
         }
 
@@ -125,8 +129,25 @@ namespace ResumeSpy.UI.Controllers
                     resume.CreatedIpAddress = ipAddress;
                     resume.ExpiresAt = DateTime.UtcNow.AddDays(30);
 
-                    var createdResume = await _resumeService.Create(resume);
-                    await _guestSessionService.IncrementResumeCountAsync(guestSessionId.Value);
+                    await _unitOfWork.BeginTransactionAsync();
+                    ResumeViewModel createdResume;
+                    try
+                    {
+                        var acquired = await _guestSessionService.TryAcquireResumeSlotAsync(guestSessionId.Value);
+                        if (!acquired)
+                        {
+                            await _unitOfWork.RollbackTransactionAsync();
+                            return StatusCode(403, new { error = "Guest resume limit reached. Please register to create more resumes." });
+                        }
+
+                        createdResume = await _resumeService.Create(resume);
+                        await _unitOfWork.CommitTransactionAsync();
+                    }
+                    catch
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        throw;
+                    }
 
                     _logger.LogInformation($"Guest resume created: {createdResume.Id} from session {guestSessionId.Value}");
                     return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
