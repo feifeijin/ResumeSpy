@@ -128,13 +128,25 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowSpecificOrigin",
         builder => builder
-            .WithOrigins(
-                "http://localhost:5173",    // Frontend (HTTP)
-                "https://localhost:5173",   // Frontend (HTTPS)
-                "http://localhost:5293",    // API (HTTP)
-                "https://localhost:7227",   // API (HTTPS)
-                "https://resume-spy-web.vercel.app" // Frontend (Vercel)
-            )
+            .SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrWhiteSpace(origin) || !Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                    return false;
+
+                // Local frontend development
+                if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) && uri.Port == 5173)
+                    return true;
+
+                // Known production Vercel domain
+                if (uri.Host.Equals("resume-spy-web.vercel.app", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                // Vercel preview domains for this project/user namespace
+                if (uri.Host.EndsWith("-feifeijins-projects.vercel.app", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                return false;
+            })
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials()); // Add this for better cross-origin support
