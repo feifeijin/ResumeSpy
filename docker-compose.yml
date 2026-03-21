@@ -12,13 +12,5 @@ services:
       - db-data:/var/lib/postgresql/data
     restart: unless-stopped
 
-  mailhog:
-    image: mailhog/mailhog
-    container_name: resumespy-mailhog
-    ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI
-    restart: unless-stopped
-
 volumes:
   db-data:

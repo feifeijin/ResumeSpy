@@ -14,9 +14,8 @@ namespace ResumeSpy.Infrastructure.Data
         #region DbSet Section
         public DbSet<Resume> Resumes { get; set; }
         public DbSet<ResumeDetail> ResumeDetails { get; set; }
-        public DbSet<UserRefreshToken> UserRefreshTokens { get; set; }
-        public DbSet<EmailLoginToken> EmailLoginTokens { get; set; }
         public DbSet<AnonymousUser> AnonymousUsers { get; set; }
+        public DbSet<GuestSession> GuestSessions { get; set; }
 
         #endregion
 
@@ -58,31 +57,6 @@ namespace ResumeSpy.Infrastructure.Data
                 entity.Property(e => e.AvatarUrl).HasMaxLength(512);
                 entity.Property(e => e.JobTitle).HasMaxLength(128);
                 entity.Property(e => e.Organization).HasMaxLength(128);
-            });
-
-            builder.Entity<UserRefreshToken>(entity =>
-            {
-                entity.Property(e => e.Id).ValueGeneratedOnAdd();
-                entity.HasIndex(e => e.Token).IsUnique();
-                entity.HasOne(e => e.User)
-                    .WithMany(u => u.RefreshTokens)
-                    .HasForeignKey(e => e.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
-            });
-
-            builder.Entity<EmailLoginToken>(entity =>
-            {
-                entity.Property(e => e.Id).ValueGeneratedOnAdd();
-                entity.Property(e => e.TokenHash)
-                    .IsRequired()
-                    .HasMaxLength(128);
-                entity.Property(e => e.RedirectUrl)
-                    .HasMaxLength(1024);
-                entity.HasIndex(e => new { e.UserId, e.TokenHash }).IsUnique();
-                entity.HasOne(e => e.User)
-                    .WithMany(u => u.EmailLoginTokens)
-                    .HasForeignKey(e => e.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<Resume>(entity =>

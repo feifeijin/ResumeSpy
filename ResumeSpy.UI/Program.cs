@@ -86,34 +86,16 @@ builder.Services.AddLogging();
 
 // Load translator settings from configuration
 builder.Services.Configure<TranslatorSettings>(builder.Configuration.GetSection("TranslatorSettings"));
-builder.Services.Configure<ExternalAuthSettings>(builder.Configuration.GetSection("ExternalAuth"));
-builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
+builder.Services.Configure<SupabaseSettings>(builder.Configuration.GetSection("Supabase"));
 builder.Services.Configure<AnonymousUserSettings>(builder.Configuration.GetSection("AnonymousUserSettings"));
 
-var jwtSettingsSection = builder.Configuration.GetSection("Jwt");
-builder.Services.Configure<JwtSettings>(jwtSettingsSection);
-var jwtSettings = jwtSettingsSection.Get<JwtSettings>() ?? new JwtSettings();
+// Supabase JWT validation
+var supabaseUrl = builder.Configuration["Supabase:Url"]
+    ?? throw new InvalidOperationException("Supabase:Url is not configured.");
+var supabaseJwtSecret = builder.Configuration["Supabase:JwtSecret"]
+    ?? throw new InvalidOperationException("Supabase:JwtSecret is not configured.");
 
-if (string.IsNullOrEmpty(jwtSettings.SigningKey))
-    throw new InvalidOperationException(
-        "Jwt:SigningKey is not configured. Set it in appsettings.Development.json (local) " +
-        "or the Jwt__SigningKey environment variable (deployed).");
-
-var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SigningKey));
-
-var tokenValidationParameters = new TokenValidationParameters
-{
-    ValidateIssuer = true,
-    ValidateAudience = true,
-    ValidateIssuerSigningKey = true,
-    ValidateLifetime = true,
-    ValidIssuer = jwtSettings.Issuer,
-    ValidAudience = jwtSettings.Audience,
-    IssuerSigningKey = signingKey,
-    ClockSkew = TimeSpan.Zero
-};
-
-builder.Services.AddSingleton(tokenValidationParameters);
+var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(supabaseJwtSecret));
 
 builder.Services
     .AddAuthentication(options =>
@@ -124,7 +106,19 @@ builder.Services
     .AddJwtBearer(options =>
     {
         options.SaveToken = true;
-        options.TokenValidationParameters = tokenValidationParameters;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ValidIssuer = $"{supabaseUrl}/auth/v1",
+            ValidAudience = "authenticated",
+            IssuerSigningKey = signingKey,
+            ClockSkew = TimeSpan.Zero,
+            NameClaimType = "email",
+            RoleClaimType = "role"
+        };
     });
 
 builder.Services.AddAuthorization();
