@@ -45,5 +45,15 @@ namespace ResumeSpy.Core.Interfaces.IServices
         /// <param name="userId">The user ID to assign the resumes to</param>
         /// <returns>The number of resumes reassigned</returns>
         Task<int> ConvertGuestToUserAsync(Guid guestSessionId, string userId);
+
+        /// <summary>
+        /// Deletes a resume atomically, ensuring the guest session resume count is properly decremented.
+        /// This operation is performed in a single transaction to maintain consistency.
+        /// </summary>
+        /// <param name="resumeId">The ID of the resume to delete</param>
+        /// <param name="userId">Optional user ID for authorization</param>
+        /// <param name="guestSessionId">Optional guest session ID for authorization</param>
+        /// <returns>Task representing the operation</returns>
+        Task DeleteResumeAtomicAsync(string resumeId, string? userId = null, Guid? guestSessionId = null);
     }
 }

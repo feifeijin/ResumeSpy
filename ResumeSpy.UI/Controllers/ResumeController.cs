@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ResumeSpy.Core.Entities.Business;
+using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.UI.Middlewares;
 using System.Security.Claims;
@@ -236,27 +237,29 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
-                var existingResume = await _resumeService.GetResume(id);
-                
-                // Authorization check
                 var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
                 var guestSessionId = HttpContext.GetGuestSessionId();
-                
-                bool isAuthorized = 
-                    (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
-                    (guestSessionId.HasValue && existingResume.GuestSessionId == guestSessionId);
-                
-                if (!isAuthorized)
-                {
-                    return Forbid();
-                }
-                
-                await _resumeService.Delete(id);
+
+                // Use atomic deletion that properly handles guest session count decrement
+                await _resumeManagementService.DeleteResumeAtomicAsync(id, userId, guestSessionId);
+
+                _logger.LogInformation($"Resume {id} deleted successfully");
                 return NoContent();
             }
-            catch (Exception)
+            catch (NotFoundException ex)
             {
-                return NotFound();
+                _logger.LogWarning($"Resume not found: {ex.Message}");
+                return NotFound(new { error = ex.Message });
+            }
+            catch (UnauthorizedException ex)
+            {
+                _logger.LogWarning($"Unauthorized delete attempt: {ex.Message}");
+                return Forbid();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error deleting resume {id}: {ex.Message}");
+                return StatusCode(500, new { error = "An error occurred while deleting the resume" });
             }
         }
     }

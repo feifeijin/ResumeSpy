@@ -133,18 +133,40 @@ namespace ResumeSpy.Infrastructure.Services
             try
             {
                 var session = await GetGuestSessionAsync(sessionId);
-                if (session != null && session.ResumeCount > 0)
+                
+                // Defensive: Check if session exists
+                if (session == null)
                 {
-                    session.ResumeCount--;
-                    session.UpdateDate = DateTime.UtcNow;
-                    await _guestSessionRepository.Update(session);
-                    await _unitOfWork.SaveChangesAsync();
+                    _logger.LogError($"Session {sessionId} not found for decrement operation");
+                    return;  // Fail gracefully - session may have been deleted
                 }
+
+                // Defensive: Check if session has been converted to user
+                if (session.IsConverted)
+                {
+                    _logger.LogWarning($"Attempted to decrement count for converted session {sessionId}. Skipping decrement.");
+                    return;  // Don't modify converted sessions
+                }
+
+                // Defensive: Prevent negative counts
+                if (session.ResumeCount <= 0)
+                {
+                    _logger.LogWarning($"Resume count already at 0 for session {sessionId}. Cannot decrement further.");
+                    return;  // Prevent negative counts
+                }
+
+                session.ResumeCount--;
+                session.UpdateDate = DateTime.UtcNow;
+                
+                await _guestSessionRepository.Update(session);
+                await _unitOfWork.SaveChangesAsync();
+
+                _logger.LogInformation($"Session {sessionId} resume count decremented to {session.ResumeCount}");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error decrementing resume count: {ex.Message}");
-                throw;
+                _logger.LogError($"Error decrementing resume count for session {sessionId}: {ex.Message}");
+                throw;  // Propagate the error - decrement failure should block deletion
             }
         }
 
@@ -164,8 +186,52 @@ namespace ResumeSpy.Infrastructure.Services
 
         public async Task<bool> HasReachedResumeLimitAsync(Guid sessionId)
         {
-            var count = await GetResumeCountAsync(sessionId);
-            return count >= _settings.MaxResumePerSession;
+            try
+            {
+                var session = await GetGuestSessionAsync(sessionId);
+                if (session == null)
+                {
+                    _logger.LogWarning($"Session {sessionId} not found in HasReachedResumeLimitAsync");
+                    return true;  // Block if session invalid
+                }
+
+                if (session.IsConverted)
+                {
+                    _logger.LogWarning($"Session {sessionId} already converted, cannot create new resumes");
+                    return true;  // Block if session converted
+                }
+
+                // Defensive: Count actual resumes to detect counter corruption
+                var actualResumes = await _resumeRepository.GetByGuestSessionIdAsync(sessionId);
+                var actualCount = actualResumes?.Count ?? 0;
+                var storedCount = session.ResumeCount;
+
+                // Log discrepancy if counter corruption detected
+                if (storedCount > actualCount)
+                {
+                    _logger.LogWarning($"Counter corruption detected for session {sessionId}: stored count={storedCount}, actual count={actualCount}. Auto-correcting.");
+                    // Auto-correct the counter to match actual count
+                    session.ResumeCount = actualCount;
+                    session.UpdateDate = DateTime.UtcNow;
+                    await _guestSessionRepository.Update(session);
+                    await _unitOfWork.SaveChangesAsync();
+                    storedCount = actualCount;
+                }
+                else if (storedCount < actualCount)
+                {
+                    // This should not happen but log it as a critical error
+                    _logger.LogError($"CRITICAL: Counter underflow for session {sessionId}: stored count={storedCount}, actual count={actualCount}");
+                    // Use the actual count to be safe
+                    storedCount = actualCount;
+                }
+
+                return storedCount >= _settings.MaxResumePerSession;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error checking resume limit for session {sessionId}: {ex.Message}");
+                return true;  // Block creation on error (fail secure)
+            }
         }
 
         public async Task<bool> HasExceededSessionRateLimitAsync(string ipAddress)

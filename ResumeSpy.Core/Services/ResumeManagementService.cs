@@ -297,5 +297,51 @@ namespace ResumeSpy.Core.Services
                 throw;
             }
         }
+
+        /// <summary>
+        /// Deletes a resume atomically, ensuring the guest session resume count is properly decremented.
+        /// This maintains quota consistency by reducing the counter when a guest resume is deleted.
+        /// </summary>
+        public async Task DeleteResumeAtomicAsync(string resumeId, string? userId = null, Guid? guestSessionId = null)
+        {
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                // Fetch the resume to verify it exists and get its guest session
+                var resume = await _resumeService.GetResume(resumeId);
+                if (resume == null)
+                {
+                    throw new NotFoundException($"Resume with id {resumeId} not found.");
+                }
+
+                // Authorization check: user owns it or guest session matches
+                bool isAuthorized = 
+                    (!string.IsNullOrEmpty(userId) && resume.UserId == userId) ||
+                    (guestSessionId.HasValue && resume.GuestSessionId == guestSessionId);
+
+                if (!isAuthorized)
+                {
+                    throw new UnauthorizedException("Not authorized to delete this resume.");
+                }
+
+                // Delete the resume
+                await _resumeService.Delete(resumeId);
+
+                // Decrement guest session counter if this was a guest resume
+                if (resume.IsGuest && resume.GuestSessionId.HasValue)
+                {
+                    await _guestSessionService.DecrementResumeCountAsync(resume.GuestSessionId.Value);
+                }
+
+                // Commit the transaction
+                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.CommitTransactionAsync();
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
+        }
     }
 }
