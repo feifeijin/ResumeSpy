@@ -25,12 +25,12 @@ namespace ResumeSpy.Infrastructure.Services.Translation
 
         private class TranslationResult
         {
-            public List<Translation> Translations { get; set; }
+            public List<Translation> Translations { get; set; } = new();
         }
 
         private class Translation
         {
-            public string Text { get; set; }
+            public string Text { get; set; } = string.Empty;
         }
     }
 }

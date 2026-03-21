@@ -13,7 +13,7 @@ namespace ResumeSpy.Core.Entities.General
     {
 
         [Required]
-        public string Title { get; set; }
+    public string Title { get; set; } = string.Empty;
         
         public int ResumeDetailCount { get; set; }
         

@@ -12,7 +12,7 @@ namespace ResumeSpy.Core.Entities.General
     public class Base<T>
     {
         [Key]
-        public T Id { get; set; } // Remove 'required'
+        public T Id { get; set; } = default!;
 
         public DateTime? EntryDate { get; set; }
 

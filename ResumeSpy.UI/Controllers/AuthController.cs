@@ -134,11 +134,11 @@ namespace ResumeSpy.UI.Controllers
             var response = await _authService.ExternalLoginAsync(request, cancellationToken);
             if (!response.Succeeded)
             {
-            // Convert guest session to user if exists
-            await TryConvertGuestSessionAsync(response.UserId);
-
                 return BadRequest(response);
             }
+
+            // Convert guest session to user if exists
+            await TryConvertGuestSessionAsync(response.UserId);
 
             return Ok(response);
         }
@@ -162,10 +162,15 @@ namespace ResumeSpy.UI.Controllers
         /// Attempts to convert a guest session to a registered user.
         /// Errors are logged but do not fail the authentication flow.
         /// </summary>
-        private async Task TryConvertGuestSessionAsync(string userId)
+        private async Task TryConvertGuestSessionAsync(string? userId)
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return;
+                }
+
                 if (Request.Cookies.TryGetValue(GUEST_SESSION_COOKIE, out var sessionIdStr) &&
                     Guid.TryParse(sessionIdStr, out var sessionGuid))
                 {

@@ -24,7 +24,7 @@ namespace ResumeSpy.Infrastructure.Services.Translation
 
         private class LibreTranslateResponse
         {
-            public string TranslatedText { get; set; }
+            public string TranslatedText { get; set; } = string.Empty;
         }
     }
 }

@@ -8,10 +8,8 @@ namespace ResumeSpy.Infrastructure.Repositories
 {
     public class ResumeDetailRepository : BaseRepository<ResumeDetail>, IResumeDetailRepository
     {
-        private readonly ApplicationDbContext _dbContext;
         public ResumeDetailRepository(ApplicationDbContext dbContext) : base(dbContext)
         {
-            this._dbContext = dbContext;
         }
 
         public async Task<IEnumerable<ResumeDetail>> GetResumeDetailsByResumeIdAsync(string resumeId)

@@ -27,6 +27,6 @@ namespace ResumeSpy.Core.Entities.General
         public DateTime? RevokedAt { get; set; }
 
         [ForeignKey(nameof(UserId))]
-        public ApplicationUser User { get; set; }
+        public ApplicationUser User { get; set; } = null!;
     }
 }

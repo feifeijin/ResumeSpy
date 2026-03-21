@@ -52,14 +52,14 @@ namespace ResumeSpy.Infrastructure.Services.Translation
         public class Translation
         {
             [JsonProperty("detected_source_language")]
-            public string DetectedSourceLanguage { get; set; }
+            public string DetectedSourceLanguage { get; set; } = string.Empty;
 
-            public string Text { get; set; }
+            public string Text { get; set; } = string.Empty;
         }
 
         public class DeepLResponse
         {
-            public List<Translation> Translations { get; set; }
+            public List<Translation> Translations { get; set; } = new();
         }
     }
 }

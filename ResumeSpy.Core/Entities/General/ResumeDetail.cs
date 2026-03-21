@@ -12,7 +12,7 @@ namespace ResumeSpy.Core.Entities.General
     public class ResumeDetail : Base<string>
     {
         [Required]
-        public string ResumeId { get; set; }
+        public string ResumeId { get; set; } = string.Empty;
         public string? Name { get; set; }
         public string? Language { get; set; }
         public string? Content { get; set; }

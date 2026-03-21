@@ -8,7 +8,7 @@ namespace ResumeSpy.Core.Entities.General
     public class GuestSession : Base<Guid>
     {
         [Required]
-        public string IpAddress { get; set; }
+        public string IpAddress { get; set; } = string.Empty;
 
         public string? UserAgent { get; set; }
 

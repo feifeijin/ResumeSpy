@@ -11,11 +11,8 @@ namespace ResumeSpy.Infrastructure.Repositories
 {
     public class GuestSessionRepository : BaseRepository<GuestSession>, IGuestSessionRepository
     {
-        private readonly ApplicationDbContext _dbContext;
-
         public GuestSessionRepository(ApplicationDbContext dbContext) : base(dbContext)
         {
-            _dbContext = dbContext;
         }
 
         public async Task<IEnumerable<GuestSession>> GetExpiredSessionsAsync()
