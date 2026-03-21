@@ -26,17 +26,17 @@ ResumeSpy uses three distinct environments for development and deployment:
 
 ### Development Environment (DEV)
 - **Purpose**: Integration testing and staging
-- **Database**: Shared DEV PostgreSQL instance
-- **Deployment**: Automatic on merge to `main` branch
+- **Database**: Hosted PostgreSQL (e.g. Supabase, Render Postgres)
+- **Deployment**: Automatic on merge to `main` branch → Render
 - **Testing**: Automated CI/CD validation
-- **Secrets**: GitHub Environment secrets
+- **Secrets**: GitHub Environment secrets + Render environment variables
 
 ### Production Environment (PROD)
 - **Purpose**: Live production system
 - **Database**: Production PostgreSQL with backups
-- **Deployment**: Automatic on push to `release/**` branches
+- **Deployment**: Automatic on push to `release/**` branches → Render
 - **Testing**: Pre-deployment validation + post-deployment smoke tests
-- **Secrets**: GitHub Environment secrets with protection rules
+- **Secrets**: GitHub Environment secrets with protection rules + Render environment variables
 
 ### Preview Environments (Not Applicable)
 **Note**: Preview environments are **not applicable** for this backend API because:

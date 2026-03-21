@@ -16,12 +16,14 @@ This guide covers how to implement actual deployment for the ResumeSpy backend A
 ## Current Status
 
 The current CI/CD implementation includes:
-- ✅ Automated build and test on pull requests
-- ✅ Automated publish on merge to `main` or `release/**`
+- ✅ Automated build and test on pull requests (CI)
+- ✅ Automated deployment to **Render** on merge to `main` (DEV)
+- ✅ Automated deployment to **Render** on push to `release/**` (PROD)
 - ✅ Environment-specific workflows (DEV vs PROD)
-- ⚠️ **Deployment stubs** (not actually deploying yet)
 
-**What's Missing**: The actual deployment step that takes the published artifacts and deploys them to a hosting platform.
+**Hosting**: Backend is deployed on [Render](https://render.com/) via deploy hook webhooks triggered from GitHub Actions.
+
+**Frontend**: Deployed separately on [Vercel](https://vercel.com/) with automatic deploys.
 
 ## Deployment Options
 

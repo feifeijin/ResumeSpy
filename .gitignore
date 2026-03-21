@@ -14,3 +14,7 @@ Scripts/LocalDev/
 # CI/CD artifacts
 /publish
 *.env
+!.env.example
+
+# Production config (secrets injected at deploy time)
+ResumeSpy.UI/appsettings.Production.json

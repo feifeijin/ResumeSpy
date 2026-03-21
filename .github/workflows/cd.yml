@@ -1,54 +1,71 @@
 name: CD - Continuous Deployment
 
-# Trigger this workflow on pushes to main (DEV) or release branches (PROD)
 on:
   push:
     branches: 
       - main
+      - 'release/**'
 
 # Prevent concurrent deployments to the same environment
 concurrency: 
   group: deploy-${{ github.ref }}
-  cancel-in-progress: false  # Don't cancel deployments, queue them instead
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
-    name: Build and Deploy
+  build-and-test:
+    name: Build and Test
     runs-on: ubuntu-latest
-    
-    environment: 
-      name: DEV
-    
+
     steps:
-      # Step 1: Check out the code
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      # Step 2: Set up .NET 9.0 SDK
+
       - name: Setup .NET 9.0
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
-      
-      # Step 3: Restore dependencies
+
       - name: Restore dependencies
         run: dotnet restore ResumeSpy.sln
-      
-      # Step 4: Build the solution in Release mode
+
       - name: Build solution
         run: dotnet build ResumeSpy.sln --configuration Release --no-restore
-      
-      # Step 5: Run tests
+
       - name: Run tests
         run: dotnet test ResumeSpy.sln --configuration Release --no-build --verbosity normal
-      
-      # Step 6: Deploy to Render (DEV)
+
+  deploy-dev:
+    name: Deploy to DEV
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: DEV
+
+    steps:
       - name: Deploy to Render (DEV)
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
           if [[ -z "${RENDER_DEPLOY_HOOK_URL}" ]]; then
             echo "RENDER_DEPLOY_HOOK_URL is not set."
+            exit 1
+          fi
+          curl -fsS -X POST "${RENDER_DEPLOY_HOOK_URL}"
+
+  deploy-prod:
+    name: Deploy to PROD
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/heads/release/')
+    runs-on: ubuntu-latest
+    environment: PROD
+
+    steps:
+      - name: Deploy to Render (PROD)
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_PROD_DEPLOY_HOOK_URL }}
+        run: |
+          if [[ -z "${RENDER_DEPLOY_HOOK_URL}" ]]; then
+            echo "RENDER_PROD_DEPLOY_HOOK_URL is not set."
             exit 1
           fi
           curl -fsS -X POST "${RENDER_DEPLOY_HOOK_URL}"
