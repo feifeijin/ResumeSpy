@@ -75,7 +75,7 @@ namespace ResumeSpy.Core.Services
            return _resumeViewModelMapper.MapModel(entity);
         }
 
-        public async Task<IEnumerable<ResumeViewModel>> GetResumes(string? userId = null, Guid? guestSessionId = null)
+        public async Task<IEnumerable<ResumeViewModel>> GetResumes(string? userId = null, Guid? anonymousUserId = null)
         {
             IEnumerable<Resume> resumes;
             
@@ -83,13 +83,13 @@ namespace ResumeSpy.Core.Services
             {
                 resumes = await _resumeRepository.GetByUserIdAsync(userId);
             }
-            else if (guestSessionId.HasValue)
+            else if (anonymousUserId.HasValue)
             {
-                resumes = await _resumeRepository.GetByGuestSessionIdAsync(guestSessionId.Value);
+                resumes = await _resumeRepository.GetByAnonymousUserIdAsync(anonymousUserId.Value);
             }
             else
             {
-                // Return empty for unauthenticated requests without guest session
+                // Return empty for unauthenticated requests without anonymous user ID
                 resumes = Enumerable.Empty<Resume>();
             }
             
@@ -122,9 +122,9 @@ namespace ResumeSpy.Core.Services
             }
         }
 
-        public async Task<int> ReassignGuestResumesAsync(Guid guestSessionId, string userId)
+        public async Task<int> ReassignAnonymousResumesAsync(Guid anonymousUserId, string userId)
         {
-            var resumes = await _resumeRepository.GetByGuestSessionIdAsync(guestSessionId);
+            var resumes = await _resumeRepository.GetByAnonymousUserIdAsync(anonymousUserId);
             if (resumes == null || !resumes.Any())
             {
                 return 0;
@@ -134,7 +134,7 @@ namespace ResumeSpy.Core.Services
             {
                 resume.UserId = userId;
                 resume.IsGuest = false;
-                // Keep GuestSessionId for audit trail
+                resume.AnonymousUserId = null;
                 resume.ExpiresAt = null;
             }
 

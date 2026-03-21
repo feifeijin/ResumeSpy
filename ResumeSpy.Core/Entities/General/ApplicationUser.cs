@@ -11,8 +11,6 @@ namespace ResumeSpy.Core.Entities.General
         public string? Organization { get; set; }
         public bool IsExternalLogin { get; set; }
 
-        public ICollection<UserRefreshToken> RefreshTokens { get; set; } = new HashSet<UserRefreshToken>();
-        public ICollection<EmailLoginToken> EmailLoginTokens { get; set; } = new HashSet<EmailLoginToken>();
         public ICollection<Resume> Resumes { get; set; } = new HashSet<Resume>();
     }
 }

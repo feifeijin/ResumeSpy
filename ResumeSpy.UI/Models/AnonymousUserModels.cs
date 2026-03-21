@@ -1,0 +1,3 @@
+namespace ResumeSpy.UI.Models
+{
+}

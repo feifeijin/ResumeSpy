@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ResumeSpy.Core.Entities.Business;
+using ResumeSpy.Core.Exceptions;
+using ResumeSpy.Core.Interfaces.IRepositories;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.UI.Middlewares;
 using System.Security.Claims;
@@ -16,20 +18,23 @@ namespace ResumeSpy.UI.Controllers
         private readonly ILogger<ResumeController> _logger;
         private readonly IResumeService _resumeService;
         private readonly IResumeManagementService _resumeManagementService;
-        private readonly IGuestSessionService _guestSessionService;
+        private readonly IAnonymousUserService _anonymousUserService;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IMemoryCache _memoryCache;
 
         public ResumeController(
             ILogger<ResumeController> logger, 
             IResumeService resumeService, 
             IResumeManagementService resumeManagementService,
-            IGuestSessionService guestSessionService,
+            IAnonymousUserService anonymousUserService,
+            IUnitOfWork unitOfWork,
             IMemoryCache memoryCache)
         {
             _logger = logger;
             _resumeService = resumeService;
             _resumeManagementService = resumeManagementService;
-            _guestSessionService = guestSessionService;
+            _anonymousUserService = anonymousUserService;
+            _unitOfWork = unitOfWork;
             _memoryCache = memoryCache;
         }
 
@@ -37,9 +42,9 @@ namespace ResumeSpy.UI.Controllers
         public async Task<ActionResult<IEnumerable<ResumeViewModel>>> GetResumes()
         {
             var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-            var guestSessionId = HttpContext.GetGuestSessionId();
+            var anonymousUserId = HttpContext.GetAnonymousUserId();
             
-            var resumes = (await _resumeService.GetResumes(userId, guestSessionId))
+            var resumes = (await _resumeService.GetResumes(userId, anonymousUserId))
                 .OrderByDescending(r => r.EntryDate)
                 .ToList();
             
@@ -55,11 +60,11 @@ namespace ResumeSpy.UI.Controllers
                 
                 // Authorization check
                 var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-                var guestSessionId = HttpContext.GetGuestSessionId();
+                var anonymousUserId = HttpContext.GetAnonymousUserId();
                 
                 bool isAuthorized = 
                     (!string.IsNullOrEmpty(userId) && resume.UserId == userId) ||
-                    (guestSessionId.HasValue && resume.GuestSessionId == guestSessionId);
+                    (anonymousUserId.HasValue && resume.AnonymousUserId == anonymousUserId);
                 
                 if (!isAuthorized)
                 {
@@ -80,59 +85,58 @@ namespace ResumeSpy.UI.Controllers
             try
             {
                 var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-                var guestSessionId = HttpContext.GetGuestSessionId();
+                var anonymousUserId = HttpContext.GetAnonymousUserId();
                 
                 // Authenticated users get full access
                 if (!string.IsNullOrEmpty(userId))
                 {
                     resume.IsGuest = false;
                     resume.UserId = userId;
-                    resume.GuestSessionId = null;
+                    resume.AnonymousUserId = null;
                     resume.ExpiresAt = null;
                     var createdResume = await _resumeService.Create(resume);
                     return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
                 }
 
-                // Guest flow: enforce limits
-                if (guestSessionId.HasValue)
+                // Anonymous flow: enforce limits
+                if (anonymousUserId.HasValue)
                 {
-                    var ipAddress = HttpContext.GetGuestIpAddress();
-
-                    // Check per-session limit
-                    var hasReachedLimit = await _guestSessionService.HasReachedResumeLimitAsync(guestSessionId.Value);
+                    // Check per-user limit
+                    var hasReachedLimit = await _anonymousUserService.HasReachedResumeLimitAsync(anonymousUserId.Value);
                     if (hasReachedLimit)
                     {
-                        return StatusCode(403, new { error = "Guest resume limit reached. Please register to create more resumes." });
-                    }
-
-                    // Check IP-based rate limiting (prevents incognito abuse)
-                    if (!string.IsNullOrEmpty(ipAddress))
-                    {
-                        var exceededResumeLimit = await _guestSessionService.HasExceededResumeRateLimitAsync(ipAddress);
-                        if (exceededResumeLimit)
-                        {
-                            _logger.LogWarning($"Guest resume creation blocked - IP {ipAddress} exceeded rate limit");
-                            return StatusCode(429, new { 
-                                error = "Resume creation limit exceeded for your network. Please sign up for unlimited access.",
-                                code = "RATE_LIMIT_EXCEEDED"
-                            });
-                        }
+                        return StatusCode(403, new { error = "Resume limit reached. Please register to create more resumes." });
                     }
 
                     resume.IsGuest = true;
-                    resume.GuestSessionId = guestSessionId.Value;
-                    resume.CreatedIpAddress = ipAddress;
+                    resume.AnonymousUserId = anonymousUserId.Value;
                     resume.ExpiresAt = DateTime.UtcNow.AddDays(30);
 
-                    var createdResume = await _resumeService.Create(resume);
-                    await _guestSessionService.IncrementResumeCountAsync(guestSessionId.Value);
+                    await _unitOfWork.BeginTransactionAsync();
+                    ResumeViewModel createdResume;
+                    try
+                    {
+                        var acquired = await _anonymousUserService.TryAcquireResumeSlotAsync(anonymousUserId.Value);
+                        if (!acquired)
+                        {
+                            await _unitOfWork.RollbackTransactionAsync();
+                            return StatusCode(403, new { error = "Resume limit reached. Please register to create more resumes." });
+                        }
 
-                    _logger.LogInformation($"Guest resume created: {createdResume.Id} from session {guestSessionId.Value}");
+                        createdResume = await _resumeService.Create(resume);
+                        await _unitOfWork.CommitTransactionAsync();
+                    }
+                    catch
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        throw;
+                    }
+
+                    _logger.LogInformation("Anonymous resume created: {ResumeId} from user {AnonymousUserId}", createdResume.Id, anonymousUserId.Value);
                     return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
                 }
 
-                // Should not happen because middleware auto-creates guest session for anonymous users
-                return Unauthorized("Guest session not found.");
+                return Unauthorized("Anonymous user identity not found.");
             }
             catch (Exception ex)
             {
@@ -150,11 +154,11 @@ namespace ResumeSpy.UI.Controllers
                 
                 // Authorization check
                 var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-                var guestSessionId = HttpContext.GetGuestSessionId();
+                var anonymousUserId = HttpContext.GetAnonymousUserId();
                 
                 bool isAuthorized = 
                     (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
-                    (guestSessionId.HasValue && existingResume.GuestSessionId == guestSessionId);
+                    (anonymousUserId.HasValue && existingResume.AnonymousUserId == anonymousUserId);
                 
                 if (!isAuthorized)
                 {
@@ -180,11 +184,11 @@ namespace ResumeSpy.UI.Controllers
                 
                 // Authorization check
                 var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-                var guestSessionId = HttpContext.GetGuestSessionId();
+                var anonymousUserId = HttpContext.GetAnonymousUserId();
                 
                 bool isAuthorized = 
                     (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
-                    (guestSessionId.HasValue && existingResume.GuestSessionId == guestSessionId);
+                    (anonymousUserId.HasValue && existingResume.AnonymousUserId == anonymousUserId);
                 
                 if (!isAuthorized)
                 {
@@ -210,11 +214,11 @@ namespace ResumeSpy.UI.Controllers
                 
                 // Authorization check
                 var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-                var guestSessionId = HttpContext.GetGuestSessionId();
+                var anonymousUserId = HttpContext.GetAnonymousUserId();
                 
                 bool isAuthorized = 
                     (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
-                    (guestSessionId.HasValue && existingResume.GuestSessionId == guestSessionId);
+                    (anonymousUserId.HasValue && existingResume.AnonymousUserId == anonymousUserId);
                 
                 if (!isAuthorized)
                 {
@@ -236,27 +240,29 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
-                var existingResume = await _resumeService.GetResume(id);
-                
-                // Authorization check
                 var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-                var guestSessionId = HttpContext.GetGuestSessionId();
-                
-                bool isAuthorized = 
-                    (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
-                    (guestSessionId.HasValue && existingResume.GuestSessionId == guestSessionId);
-                
-                if (!isAuthorized)
-                {
-                    return Forbid();
-                }
-                
-                await _resumeService.Delete(id);
+                var anonymousUserId = HttpContext.GetAnonymousUserId();
+
+                // Use atomic deletion that properly handles anonymous user count decrement
+                await _resumeManagementService.DeleteResumeAtomicAsync(id, userId, anonymousUserId);
+
+                _logger.LogInformation($"Resume {id} deleted successfully");
                 return NoContent();
             }
-            catch (Exception)
+            catch (NotFoundException ex)
             {
-                return NotFound();
+                _logger.LogWarning($"Resume not found: {ex.Message}");
+                return NotFound(new { error = ex.Message });
+            }
+            catch (UnauthorizedException ex)
+            {
+                _logger.LogWarning($"Unauthorized delete attempt: {ex.Message}");
+                return Forbid();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error deleting resume {id}: {ex.Message}");
+                return StatusCode(500, new { error = "An error occurred while deleting the resume" });
             }
         }
     }

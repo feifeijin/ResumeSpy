@@ -1,10 +1,10 @@
 using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using ResumeSpy.Core.Entities.Business.Auth;
+using ResumeSpy.Core.Entities.General;
 using ResumeSpy.Core.Interfaces.IServices;
 
 namespace ResumeSpy.UI.Controllers
@@ -13,187 +13,131 @@ namespace ResumeSpy.UI.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly IAuthService _authService;
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly IResumeManagementService _resumeManagementService;
         private readonly ILogger<AuthController> _logger;
-        private const string GUEST_SESSION_COOKIE = "X-Guest-Session-Id";
+        private const string ANONYMOUS_ID_HEADER = "X-Anonymous-Id";
 
         public AuthController(
-            IAuthService authService, 
+            UserManager<ApplicationUser> userManager,
             IResumeManagementService resumeManagementService,
             ILogger<AuthController> logger)
         {
-            _authService = authService;
+            _userManager = userManager;
             _resumeManagementService = resumeManagementService;
             _logger = logger;
         }
 
-        [HttpPost("register")]
-        [AllowAnonymous]
-        public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
+        /// <summary>
+        /// Syncs Supabase auth session with the local user database.
+        /// Called by the frontend after Supabase login to ensure a local user record exists.
+        /// </summary>
+        [HttpPost("sync")]
+        [Authorize]
+        public async Task<IActionResult> SyncSession()
         {
-            if (!ModelState.IsValid)
+            var supabaseUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                              ?? User.FindFirstValue("sub");
+            var email = User.FindFirstValue(ClaimTypes.Email)
+                     ?? User.FindFirstValue("email");
+
+            if (string.IsNullOrWhiteSpace(supabaseUserId) || string.IsNullOrWhiteSpace(email))
             {
-                return ValidationProblem(ModelState);
+                return Unauthorized(new AuthSyncResponse
+                {
+                    Succeeded = false,
+                    Errors = new[] { "Invalid token: missing user ID or email." }
+                });
             }
 
-            var response = await _authService.RegisterAsync(request, cancellationToken);
-            if (!response.Succeeded)
+            // Try to find existing user by Supabase ID first, then by email
+            var user = await _userManager.FindByIdAsync(supabaseUserId)
+                    ?? await _userManager.FindByEmailAsync(email);
+
+            var isNewUser = false;
+
+            if (user == null)
             {
-                return BadRequest(response);
+                // Create a new local user record
+                user = new ApplicationUser
+                {
+                    Id = supabaseUserId,
+                    UserName = email,
+                    Email = email,
+                    EmailConfirmed = true,
+                    DisplayName = email.Split('@')[0]
+                };
+
+                var createResult = await _userManager.CreateAsync(user);
+                if (!createResult.Succeeded)
+                {
+                    return BadRequest(new AuthSyncResponse
+                    {
+                        Succeeded = false,
+                        Errors = createResult.Errors.Select(e => e.Description)
+                    });
+                }
+
+                isNewUser = true;
+                _logger.LogInformation("Created local user {UserId} for {Email}", supabaseUserId, email);
             }
 
             // Convert guest session to user if exists
-            await TryConvertGuestSessionAsync(response.UserId);
+            var convertedCount = await TryConvertGuestSessionAsync(user.Id);
 
-            return Ok(response);
-        }
-
-        [HttpPost("login")]
-        [AllowAnonymous]
-        public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
-        {
-            if (!ModelState.IsValid)
+            return Ok(new AuthSyncResponse
             {
-                return ValidationProblem(ModelState);
-            }
-
-            var response = await _authService.LoginAsync(request, cancellationToken);
-            if (!response.Succeeded)
-            {
-                return Unauthorized(response);
-            }
-
-            // Convert guest session to user if exists
-            await TryConvertGuestSessionAsync(response.UserId);
-
-            return Ok(response);
-        }
-
-        [HttpPost("magic/request")]
-        [AllowAnonymous]
-        public async Task<IActionResult> RequestEmailLink([FromBody] EmailLinkRequest request, CancellationToken cancellationToken)
-        {
-            if (!ModelState.IsValid)
-            {
-                return ValidationProblem(ModelState);
-            }
-
-            var response = await _authService.RequestEmailLinkAsync(request, cancellationToken);
-            if (!response.Succeeded)
-            {
-                return BadRequest(response);
-            }
-
-            return Ok(response);
-        }
-
-        [HttpPost("magic/confirm")]
-        [AllowAnonymous]
-        public async Task<IActionResult> ConfirmEmailLink([FromBody] ConfirmEmailLinkRequest request, CancellationToken cancellationToken)
-        {
-            if (!ModelState.IsValid)
-            {
-                return ValidationProblem(ModelState);
-            }
-
-            var response = await _authService.ConfirmEmailLinkAsync(request, cancellationToken);
-            if (!response.Succeeded)
-            {
-                return BadRequest(response);
-            }
-
-            // Convert guest session to user if exists
-            await TryConvertGuestSessionAsync(response.UserId);
-
-            return Ok(response);
-        }
-
-        [HttpPost("refresh")]
-        [AllowAnonymous]
-        public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
-        {
-            if (!ModelState.IsValid)
-            {
-                return ValidationProblem(ModelState);
-            }
-
-            var response = await _authService.RefreshTokenAsync(request, cancellationToken);
-            if (!response.Succeeded)
-            {
-                return Unauthorized(response);
-            }
-
-            return Ok(response);
-        }
-
-        [HttpPost("external")]
-        [AllowAnonymous]
-        public async Task<IActionResult> ExternalLogin([FromBody] ExternalAuthRequest request, CancellationToken cancellationToken)
-        {
-            var response = await _authService.ExternalLoginAsync(request, cancellationToken);
-            if (!response.Succeeded)
-            {
-                return BadRequest(response);
-            }
-
-            // Convert guest session to user if exists
-            await TryConvertGuestSessionAsync(response.UserId);
-
-            return Ok(response);
+                Succeeded = true,
+                UserId = user.Id,
+                Email = user.Email,
+                DisplayName = user.DisplayName,
+                IsNewUser = isNewUser,
+                ConvertedResumeCount = convertedCount
+            });
         }
 
         [HttpPost("logout")]
         [Authorize]
-        public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
+        public IActionResult Logout()
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                _logger.LogWarning("Logout attempted without a user identifier in the token.");
-                return Unauthorized();
-            }
-
-            await _authService.LogoutAsync(userId, request, cancellationToken);
+            // Stateless — token revocation is handled by the Supabase client.
             return NoContent();
         }
 
         /// <summary>
-        /// Attempts to convert a guest session to a registered user.
+        /// Attempts to convert an anonymous user to a registered user.
         /// Errors are logged but do not fail the authentication flow.
         /// </summary>
-        private async Task TryConvertGuestSessionAsync(string? userId)
+        /// <summary>
+        /// Returns the number of converted resumes, or -1 if conversion failed.
+        /// </summary>
+        private async Task<int> TryConvertGuestSessionAsync(string? userId)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(userId))
                 {
-                    return;
+                    return 0;
                 }
 
-                if (Request.Cookies.TryGetValue(GUEST_SESSION_COOKIE, out var sessionIdStr) &&
-                    Guid.TryParse(sessionIdStr, out var sessionGuid))
+                if (Request.Headers.TryGetValue(ANONYMOUS_ID_HEADER, out var anonymousIdStr) &&
+                    Guid.TryParse(anonymousIdStr.ToString(), out var anonymousUserId))
                 {
-                    var resumeCount = await _resumeManagementService.ConvertGuestToUserAsync(sessionGuid, userId);
+                    var resumeCount = await _resumeManagementService.ConvertAnonymousToUserAsync(anonymousUserId, userId);
                     
                     if (resumeCount > 0)
                     {
-                        _logger.LogInformation($"Converted {resumeCount} guest resumes to user {userId} from session {sessionGuid}");
+                        _logger.LogInformation("Converted {ResumeCount} anonymous resumes to user {UserId} from anonymous user {AnonymousUserId}", resumeCount, userId, anonymousUserId);
                     }
-                    
-                    // Clear the guest session cookie after conversion
-                    Response.Cookies.Delete(GUEST_SESSION_COOKIE, new CookieOptions
-                    {
-                        Path = "/",
-                        SameSite = SameSiteMode.None,
-                        Secure = true
-                    });
+                    return resumeCount;
                 }
+                return 0;
             }
             catch (Exception ex)
             {
                 // Log the error but don't fail the authentication
-                _logger.LogError(ex, $"Failed to convert guest session for user {userId}. User can still log in.");
+                _logger.LogError(ex, "Failed to convert anonymous user for user {UserId}. User can still log in.", userId);
+                return -1;
             }
         }
     }

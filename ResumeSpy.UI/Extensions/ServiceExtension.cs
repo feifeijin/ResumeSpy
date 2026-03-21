@@ -12,7 +12,6 @@ using ResumeSpy.Infrastructure.Services.AI;
 using ResumeSpy.Infrastructure.Repositories;
 using ResumeSpy.Infrastructure.Services;
 using ResumeSpy.Infrastructure.Services.Translation;
-using ResumeSpy.Infrastructure.Services.Email;
 
 namespace ResumeSpy.UI.Extensions
 {
@@ -25,10 +24,7 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IResumeDetailService, ResumeDetailService>();
             services.AddScoped<IResumeManagementService, ResumeManagementService>();
             services.AddHttpClient<IImageGenerationService, ImageGenerationService>();
-            services.AddScoped<IAuthService, AuthService>();
-            services.AddScoped<ITokenService, TokenService>();
-            services.AddScoped<IEmailSender, SmtpEmailSender>();
-            services.AddScoped<IGuestSessionService, GuestSessionService>();
+            services.AddScoped<IAnonymousUserService, AnonymousUserService>();
 
             // Translation Services
             services.AddScoped<ITranslationService, TranslationService>();
@@ -48,7 +44,7 @@ namespace ResumeSpy.UI.Extensions
             #region Repositories
             services.AddScoped<IResumeRepository, ResumeRepository>();
             services.AddScoped<IResumeDetailRepository, ResumeDetailRepository>();
-            services.AddScoped<IGuestSessionRepository, GuestSessionRepository>();
+            services.AddScoped<IAnonymousUserRepository, AnonymousUserRepository>();
             services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             #endregion

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ResumeSpy.Infrastructure.Data;
@@ -11,9 +12,11 @@ using ResumeSpy.Infrastructure.Data;
 namespace ResumeSpy.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260321104200_AddAnonymousUserSupport")]
+    partial class AddAnonymousUserSupport
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -267,42 +270,45 @@ namespace ResumeSpy.Infrastructure.Migrations
                     b.ToTable("Users", (string)null);
                 });
 
-            modelBuilder.Entity("ResumeSpy.Core.Entities.General.GuestSession", b =>
+            modelBuilder.Entity("ResumeSpy.Core.Entities.General.EmailLoginToken", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("integer");
 
-                    b.Property<string>("ConvertedUserId")
-                        .HasColumnType("text");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ConsumedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("EntryDate")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime>("ExpiresAt")
+                    b.Property<DateTime>("ExpiresAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("IpAddress")
+                    b.Property<string>("RedirectUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("TokenHash")
                         .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsConverted")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("ResumeCount")
-                        .HasColumnType("integer");
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<DateTime?>("UpdateDate")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("UserAgent")
+                    b.Property<string>("UserId")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ConvertedUserId");
+                    b.HasIndex("UserId", "TokenHash")
+                        .IsUnique();
 
-                    b.ToTable("GuestSessions");
+                    b.ToTable("EmailLoginTokens");
                 });
 
             modelBuilder.Entity("ResumeSpy.Core.Entities.General.Resume", b =>
@@ -389,6 +395,57 @@ namespace ResumeSpy.Infrastructure.Migrations
                     b.ToTable("ResumeDetails");
                 });
 
+            modelBuilder.Entity("ResumeSpy.Core.Entities.General.UserRefreshToken", b =>
+                {
+                    b.Property<string>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EntryDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("JwtId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTime?>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserRefreshTokens");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -450,13 +507,15 @@ namespace ResumeSpy.Infrastructure.Migrations
                     b.Navigation("ConvertedUser");
                 });
 
-            modelBuilder.Entity("ResumeSpy.Core.Entities.General.GuestSession", b =>
+            modelBuilder.Entity("ResumeSpy.Core.Entities.General.EmailLoginToken", b =>
                 {
-                    b.HasOne("ResumeSpy.Core.Entities.General.ApplicationUser", "ConvertedUser")
-                        .WithMany()
-                        .HasForeignKey("ConvertedUserId");
+                    b.HasOne("ResumeSpy.Core.Entities.General.ApplicationUser", "User")
+                        .WithMany("EmailLoginTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
-                    b.Navigation("ConvertedUser");
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ResumeSpy.Core.Entities.General.Resume", b =>
@@ -487,8 +546,23 @@ namespace ResumeSpy.Infrastructure.Migrations
                     b.Navigation("Resume");
                 });
 
+            modelBuilder.Entity("ResumeSpy.Core.Entities.General.UserRefreshToken", b =>
+                {
+                    b.HasOne("ResumeSpy.Core.Entities.General.ApplicationUser", "User")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ResumeSpy.Core.Entities.General.ApplicationUser", b =>
                 {
+                    b.Navigation("EmailLoginTokens");
+
+                    b.Navigation("RefreshTokens");
+
                     b.Navigation("Resumes");
                 });
 

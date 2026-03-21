@@ -10,7 +10,7 @@ namespace ResumeSpy.Core.Interfaces.IServices
 {
     public interface IResumeService
     {
-        Task<IEnumerable<ResumeViewModel>> GetResumes(string? userId = null, Guid? guestSessionId = null);
+        Task<IEnumerable<ResumeViewModel>> GetResumes(string? userId = null, Guid? anonymousUserId = null);
         Task<PaginatedDataViewModel<ResumeViewModel>> GetPaginatedResumes(int pageNumber, int pageSize);
         Task<ResumeViewModel> GetResume(string id);
         Task<bool> IsExists(string key, string value);
@@ -18,6 +18,6 @@ namespace ResumeSpy.Core.Interfaces.IServices
         Task<ResumeViewModel> Create(ResumeViewModel model);
         Task Update(ResumeViewModel model);
         Task Delete(string id);
-        Task<int> ReassignGuestResumesAsync(Guid guestSessionId, string userId);
+        Task<int> ReassignAnonymousResumesAsync(Guid anonymousUserId, string userId);
     }
 }

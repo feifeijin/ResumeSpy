@@ -15,7 +15,7 @@ namespace ResumeSpy.Core.Entities.Business
 
         // Guest-related fields
         public string? UserId { get; set; }
-        public Guid? GuestSessionId { get; set; }
+        public Guid? AnonymousUserId { get; set; }
         public bool IsGuest { get; set; } = false;
         public string? CreatedIpAddress { get; set; }
         public DateTime? ExpiresAt { get; set; }

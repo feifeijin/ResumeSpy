@@ -11,10 +11,9 @@ namespace ResumeSpy.Core.Interfaces.IServices
         /// </summary>
         /// <param name="model">The ResumeDetail to create</param>
         /// <param name="userId">Optional user ID for authenticated users</param>
-        /// <param name="guestSessionId">Optional guest session ID for guest users</param>
-        /// <param name="ipAddress">IP address of the creator</param>
+        /// <param name="anonymousUserId">Optional anonymous user ID for unauthenticated users</param>
         /// <returns>The created ResumeDetail with proper ResumeId assigned</returns>
-        Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model, string? userId = null, Guid? guestSessionId = null, string? ipAddress = null);
+        Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model, string? userId = null, Guid? anonymousUserId = null);
 
         /// <summary>
         /// Clones a Resume and all its associated ResumeDetails in a single transaction.
@@ -38,12 +37,22 @@ namespace ResumeSpy.Core.Interfaces.IServices
         Task UpdateResumeDetailModelContentAsync(ResumeDetailViewModel model);
 
         /// <summary>
-        /// Converts a guest session to a registered user by reassigning all guest resumes and marking the session as converted.
+        /// Converts an anonymous user to a registered user by reassigning all anonymous resumes and marking the anonymous user as converted.
         /// This operation is performed in a single transaction to ensure atomicity.
         /// </summary>
-        /// <param name="guestSessionId">The guest session ID to convert</param>
+        /// <param name="anonymousUserId">The anonymous user ID to convert</param>
         /// <param name="userId">The user ID to assign the resumes to</param>
         /// <returns>The number of resumes reassigned</returns>
-        Task<int> ConvertGuestToUserAsync(Guid guestSessionId, string userId);
+        Task<int> ConvertAnonymousToUserAsync(Guid anonymousUserId, string userId);
+
+        /// <summary>
+        /// Deletes a resume atomically, ensuring the anonymous user resume count is properly decremented.
+        /// This operation is performed in a single transaction to maintain consistency.
+        /// </summary>
+        /// <param name="resumeId">The ID of the resume to delete</param>
+        /// <param name="userId">Optional user ID for authorization</param>
+        /// <param name="anonymousUserId">Optional anonymous user ID for authorization</param>
+        /// <returns>Task representing the operation</returns>
+        Task DeleteResumeAtomicAsync(string resumeId, string? userId = null, Guid? anonymousUserId = null);
     }
 }

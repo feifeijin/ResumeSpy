@@ -1,5 +1,4 @@
 using System;
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -86,34 +85,17 @@ builder.Services.AddLogging();
 
 // Load translator settings from configuration
 builder.Services.Configure<TranslatorSettings>(builder.Configuration.GetSection("TranslatorSettings"));
-builder.Services.Configure<ExternalAuthSettings>(builder.Configuration.GetSection("ExternalAuth"));
-builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
-builder.Services.Configure<GuestSessionSettings>(builder.Configuration.GetSection("GuestSessionSettings"));
+builder.Services.Configure<SupabaseSettings>(builder.Configuration.GetSection("Supabase"));
+builder.Services.Configure<AnonymousUserSettings>(builder.Configuration.GetSection("AnonymousUserSettings"));
 
-var jwtSettingsSection = builder.Configuration.GetSection("Jwt");
-builder.Services.Configure<JwtSettings>(jwtSettingsSection);
-var jwtSettings = jwtSettingsSection.Get<JwtSettings>() ?? new JwtSettings();
+// Supabase JWT validation
+var supabaseUrl = builder.Configuration["Supabase:Url"]
+    ?? throw new InvalidOperationException("Supabase:Url is not configured.");
 
-if (string.IsNullOrEmpty(jwtSettings.SigningKey))
-    throw new InvalidOperationException(
-        "Jwt:SigningKey is not configured. Set it in appsettings.Development.json (local) " +
-        "or the Jwt__SigningKey environment variable (deployed).");
-
-var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SigningKey));
-
-var tokenValidationParameters = new TokenValidationParameters
-{
-    ValidateIssuer = true,
-    ValidateAudience = true,
-    ValidateIssuerSigningKey = true,
-    ValidateLifetime = true,
-    ValidIssuer = jwtSettings.Issuer,
-    ValidAudience = jwtSettings.Audience,
-    IssuerSigningKey = signingKey,
-    ClockSkew = TimeSpan.Zero
-};
-
-builder.Services.AddSingleton(tokenValidationParameters);
+// Fetch JWKS from Supabase at startup for ES256 key validation
+using var jwksHttpClient = new HttpClient();
+var jwksJson = jwksHttpClient.GetStringAsync($"{supabaseUrl}/auth/v1/.well-known/jwks.json").GetAwaiter().GetResult();
+var jsonWebKeySet = new JsonWebKeySet(jwksJson);
 
 builder.Services
     .AddAuthentication(options =>
@@ -124,7 +106,19 @@ builder.Services
     .AddJwtBearer(options =>
     {
         options.SaveToken = true;
-        options.TokenValidationParameters = tokenValidationParameters;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ValidIssuer = $"{supabaseUrl}/auth/v1",
+            ValidAudience = "authenticated",
+            ClockSkew = TimeSpan.Zero,
+            NameClaimType = "sub",
+            RoleClaimType = "role",
+            IssuerSigningKeys = jsonWebKeySet.GetSigningKeys()
+        };
     });
 
 builder.Services.AddAuthorization();
@@ -134,13 +128,25 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowSpecificOrigin",
         builder => builder
-            .WithOrigins(
-                "http://localhost:5173",    // Frontend (HTTP)
-                "https://localhost:5173",   // Frontend (HTTPS)
-                "http://localhost:5293",    // API (HTTP)
-                "https://localhost:7227",   // API (HTTPS)
-                "https://resume-spy-web.vercel.app" // Frontend (Vercel)
-            )
+            .SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrWhiteSpace(origin) || !Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                    return false;
+
+                // Local frontend development
+                if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) && uri.Port == 5173)
+                    return true;
+
+                // Known production Vercel domain
+                if (uri.Host.Equals("resume-spy-web.vercel.app", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                // Vercel preview domains for this project/user namespace
+                if (uri.Host.EndsWith("-feifeijins-projects.vercel.app", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                return false;
+            })
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials()); // Add this for better cross-origin support
@@ -181,8 +187,9 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseGuestSessionMiddleware();
 app.UseAuthentication();
+app.UseEnsureLocalUser();
+app.UseAnonymousUserMiddleware();
 app.UseAuthorization();
 
 app.MapControllers();
