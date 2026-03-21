@@ -24,21 +24,25 @@ namespace ResumeSpy.Infrastructure.Services.AI
         {
             _logger = logger;
 
-            var endpoint = configuration["AI:OpenAI:Endpoint"] 
-                ?? throw new InvalidOperationException("OpenAI endpoint not configured");
-            var apiKey = configuration["AI:OpenAI:ApiKey"] 
-                ?? throw new InvalidOperationException("OpenAI API key not configured");
-            
+            var endpoint = GetRequiredConfiguration(configuration, "AI:OpenAI:Endpoint", "OpenAI endpoint not configured");
+            var apiKey = GetRequiredConfiguration(configuration, "AI:OpenAI:ApiKey", "OpenAI API key not configured");
+
             _defaultModel = configuration["AI:OpenAI:DefaultModel"] ?? "gpt-4o-mini";
-            
+
             // Pricing per 1K tokens (update based on your model)
             var inputCostStr = configuration["AI:OpenAI:InputTokenCostPer1K"] ?? "0.00015";
             var outputCostStr = configuration["AI:OpenAI:OutputTokenCostPer1K"] ?? "0.0006";
-            
+
             _inputTokenCostPer1K = decimal.TryParse(inputCostStr, out var inputCost) ? inputCost : 0.00015m;
             _outputTokenCostPer1K = decimal.TryParse(outputCostStr, out var outputCost) ? outputCost : 0.0006m;
 
             _client = new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
+        }
+
+        private static string GetRequiredConfiguration(IConfiguration configuration, string key, string errorMessage)
+        {
+            var value = configuration[key];
+            return !string.IsNullOrWhiteSpace(value) ? value : throw new InvalidOperationException(errorMessage);
         }
 
         public async Task<AIResponse> GenerateResponseAsync(AIRequest request)

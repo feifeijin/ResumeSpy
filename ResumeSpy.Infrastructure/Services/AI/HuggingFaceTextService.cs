@@ -26,15 +26,21 @@ namespace ResumeSpy.Infrastructure.Services.AI
             _httpClient = httpClient;
             _logger = logger;
 
-            _apiToken = configuration["AI:HuggingFace:ApiToken"] 
-                ?? throw new InvalidOperationException("HuggingFace API token not configured");
-            
-                        _defaultModel = configuration["AI:HuggingFace:DefaultModel"] ?? "meta-llama/Llama-3.1-8B-Instruct:novita";
-            _endpoint = configuration["AI:HuggingFace:Endpoint"] ?? "https://router.huggingface.co/v1/chat/completions";
+            _apiToken = GetRequiredConfiguration(configuration, "AI:HuggingFace:ApiToken", "HuggingFace API token not configured");
+            _defaultModel = configuration["AI:HuggingFace:DefaultModel"] ?? "meta-llama/Llama-3.1-8B-Instruct:novita";
+            _endpoint = string.IsNullOrWhiteSpace(configuration["AI:HuggingFace:Endpoint"])
+                ? "https://router.huggingface.co/v1/chat/completions"
+                : configuration["AI:HuggingFace:Endpoint"]!;
 
             // Set authorization header
             _httpClient.DefaultRequestHeaders.Authorization = 
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiToken);
+        }
+
+        private static string GetRequiredConfiguration(IConfiguration configuration, string key, string errorMessage)
+        {
+            var value = configuration[key];
+            return !string.IsNullOrWhiteSpace(value) ? value : throw new InvalidOperationException(errorMessage);
         }
 
         public async Task<AIResponse> GenerateResponseAsync(AIRequest request)

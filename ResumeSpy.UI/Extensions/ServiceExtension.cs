@@ -24,7 +24,7 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IResumeService, ResumeService>();
             services.AddScoped<IResumeDetailService, ResumeDetailService>();
             services.AddScoped<IResumeManagementService, ResumeManagementService>();
-            services.AddScoped<IImageGenerationService, ImageGenerationService>();
+            services.AddHttpClient<IImageGenerationService, ImageGenerationService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IEmailSender, SmtpEmailSender>();

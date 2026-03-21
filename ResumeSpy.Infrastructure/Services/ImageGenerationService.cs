@@ -1,5 +1,6 @@
 using Markdig;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -7,16 +8,21 @@ using ResumeSpy.Core.Interfaces.IServices;
 using SixLabors.Fonts;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace ResumeSpy.Infrastructure.Services
 {
     public class ImageGenerationService : IImageGenerationService
     {
-        private readonly IHostEnvironment _hostEnvironment;
-        private const string ImageDirectory = "images/resumes";
+        private readonly HttpClient _httpClient;
+        private readonly ILogger<ImageGenerationService> _logger;
+        private readonly string _supabaseUrl;
+        private readonly string _serviceRoleKey;
+        private readonly string _storageBucket;
         private static readonly object FontRegistrationLock = new();
         private static string? _questPdfFontFamily;
 
@@ -26,9 +32,16 @@ namespace ResumeSpy.Infrastructure.Services
             QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
         }
 
-        public ImageGenerationService(IHostEnvironment hostEnvironment)
+        public ImageGenerationService(
+            HttpClient httpClient,
+            IConfiguration configuration,
+            ILogger<ImageGenerationService> logger)
         {
-            _hostEnvironment = hostEnvironment;
+            _httpClient = httpClient;
+            _logger = logger;
+            _supabaseUrl = GetRequiredConfiguration(configuration, "Supabase:Url", "Supabase URL not configured").TrimEnd('/');
+            _serviceRoleKey = GetRequiredConfiguration(configuration, "Supabase:ServiceRoleKey", "Supabase service role key not configured");
+            _storageBucket = configuration["Supabase:StorageBucket"]?.Trim() ?? "resume-thumbnails";
         }
 
         public async Task<string> GenerateThumbnailAsync(string text, string uniqueIdentifier)
@@ -80,19 +93,66 @@ namespace ResumeSpy.Infrastructure.Services
             }
 
             var fileName = $"{uniqueIdentifier}_{DateTime.UtcNow:yyyyMMddHHmmss}.png";
-            var contentRootPath = _hostEnvironment.ContentRootPath;
-            var webRootPath = Path.Combine(contentRootPath, "wwwroot");
-            var uploadsFolderPath = Path.Combine(webRootPath, ImageDirectory);
+            var uploadUrl = BuildStorageObjectUrl(fileName);
 
-            if (!Directory.Exists(uploadsFolderPath))
+            using var request = new HttpRequestMessage(HttpMethod.Post, uploadUrl)
             {
-                Directory.CreateDirectory(uploadsFolderPath);
+                Content = new ByteArrayContent(imageBytes)
+            };
+
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+            request.Headers.Add("apikey", _serviceRoleKey);
+            request.Headers.Add("x-upsert", "true");
+
+            using var response = await _httpClient.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync();
+                throw new InvalidOperationException($"Failed to upload thumbnail to Supabase Storage. Status: {(int)response.StatusCode}, Body: {responseBody}");
             }
 
-            var filePath = Path.Combine(uploadsFolderPath, fileName);
-            await File.WriteAllBytesAsync(filePath, imageBytes);
+            return BuildPublicObjectUrl(fileName);
+        }
 
-            return $"/{ImageDirectory}/{fileName}";
+        private static string GetRequiredConfiguration(IConfiguration configuration, string key, string errorMessage)
+        {
+            var value = configuration[key];
+            return !string.IsNullOrWhiteSpace(value) ? value : throw new InvalidOperationException(errorMessage);
+        }
+
+        private string BuildStorageObjectUrl(string objectPath)
+        {
+            return $"{_supabaseUrl}/storage/v1/object/{_storageBucket}/{Uri.EscapeDataString(objectPath)}";
+        }
+
+        private string BuildPublicObjectUrl(string objectPath)
+        {
+            return $"{_supabaseUrl}/storage/v1/object/public/{_storageBucket}/{Uri.EscapeDataString(objectPath)}";
+        }
+
+        private string? TryExtractObjectPath(string imagePath)
+        {
+            if (!Uri.TryCreate(imagePath, UriKind.Absolute, out var uri))
+            {
+                return null;
+            }
+
+            var publicPrefix = $"/storage/v1/object/public/{_storageBucket}/";
+            var objectPrefix = $"/storage/v1/object/{_storageBucket}/";
+
+            if (uri.AbsolutePath.StartsWith(publicPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return Uri.UnescapeDataString(uri.AbsolutePath[publicPrefix.Length..]);
+            }
+
+            if (uri.AbsolutePath.StartsWith(objectPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return Uri.UnescapeDataString(uri.AbsolutePath[objectPrefix.Length..]);
+            }
+
+            return null;
         }
 
         private string? ResolveQuestPdfFontFamily()
@@ -144,26 +204,42 @@ namespace ResumeSpy.Infrastructure.Services
                 return Task.CompletedTask;
             }
 
+            return DeleteThumbnailInternalAsync(imagePath);
+        }
+
+        private async Task DeleteThumbnailInternalAsync(string imagePath)
+        {
+            var objectPath = TryExtractObjectPath(imagePath);
+
+            if (string.IsNullOrWhiteSpace(objectPath))
+            {
+                return;
+            }
+
             try
             {
-                // Construct the full physical path from the relative web path
-                var contentRootPath = _hostEnvironment.ContentRootPath;
-                var webRootPath = Path.Combine(contentRootPath, "wwwroot");
-                // Remove the leading slash from the imagePath to correctly combine paths
-                var physicalPath = Path.Combine(webRootPath, imagePath.TrimStart('/'));
+                using var request = new HttpRequestMessage(HttpMethod.Delete, BuildStorageObjectUrl(objectPath));
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _serviceRoleKey);
+                request.Headers.Add("apikey", _serviceRoleKey);
 
-                if (File.Exists(physicalPath))
+                using var response = await _httpClient.SendAsync(request);
+
+                if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
-                    File.Delete(physicalPath);
+                    return;
                 }
-            }
-            catch (Exception)
-            {
-                // Log the exception in a real application
-                // For now, we'll just ignore it to prevent crashing the operation
-            }
 
-            return Task.CompletedTask;
+                var responseBody = await response.Content.ReadAsStringAsync();
+                _logger.LogWarning(
+                    "Failed to delete thumbnail from Supabase Storage. Path: {ImagePath}, Status: {StatusCode}, Body: {ResponseBody}",
+                    imagePath,
+                    (int)response.StatusCode,
+                    responseBody);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete thumbnail from Supabase Storage. Path: {ImagePath}", imagePath);
+            }
         }
     }
 }
