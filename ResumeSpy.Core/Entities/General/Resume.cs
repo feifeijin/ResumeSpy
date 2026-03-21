@@ -25,9 +25,9 @@ namespace ResumeSpy.Core.Entities.General
         public string? UserId { get; set; }
 
         /// <summary>
-        /// Unique identifier for guest sessions. Null for authenticated user resumes.
+        /// Unique identifier for anonymous users. Null for authenticated user resumes.
         /// </summary>
-        public Guid? GuestSessionId { get; set; }
+        public Guid? AnonymousUserId { get; set; }
 
         /// <summary>
         /// Flag to indicate if this resume belongs to a guest user.
@@ -46,7 +46,7 @@ namespace ResumeSpy.Core.Entities.General
 
         // Navigation properties
         public virtual ApplicationUser? User { get; set; }
-        public virtual GuestSession? GuestSession { get; set; }
+        public virtual AnonymousUser? AnonymousUser { get; set; }
        
         public virtual ICollection<ResumeDetail> ResumeDetails { get; set; } = new List<ResumeDetail>();
     }

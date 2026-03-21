@@ -16,7 +16,6 @@ namespace ResumeSpy.UI.Controllers
 
         private readonly ILogger<ResumeDetailController> _logger;
         private readonly IResumeDetailService _resumeDetailService;
-        private readonly IGuestSessionService _guestSessionService;
         private readonly IMemoryCache _memoryCache;
         private readonly ITranslationService _translationService;
         private readonly IResumeManagementService _resumeManagementService;
@@ -25,7 +24,6 @@ namespace ResumeSpy.UI.Controllers
         public ResumeDetailController(
             ILogger<ResumeDetailController> logger,
             IResumeDetailService resumeDetailService,
-            IGuestSessionService guestSessionService,
             IMemoryCache memoryCache,
             ITranslationService translationService,
             IResumeManagementService resumeManagementService,
@@ -33,7 +31,6 @@ namespace ResumeSpy.UI.Controllers
         {
             _logger = logger;
             _resumeDetailService = resumeDetailService;
-            _guestSessionService = guestSessionService;
             _memoryCache = memoryCache;
             _translationService = translationService;
             _resumeManagementService = resumeManagementService;
@@ -67,14 +64,13 @@ namespace ResumeSpy.UI.Controllers
             try
             {
                 var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-                var guestSessionId = HttpContext.GetGuestSessionId();
-                var guestIp = HttpContext.GetGuestIpAddress();
+                var anonymousUserId = HttpContext.GetAnonymousUserId();
 
                 resumeDetailModel.CreateTime = DateTime.UtcNow.ToShortDateString();
                 resumeDetailModel.LastModifyTime = DateTime.UtcNow.ToShortDateString();
 
-                // Service handles validation, creation, and guest count increment atomically
-                var result = await _resumeManagementService.CreateResumeDetailAsync(resumeDetailModel, userId, guestSessionId, guestIp);
+                // Service handles validation, creation, and anonymous count increment atomically
+                var result = await _resumeManagementService.CreateResumeDetailAsync(resumeDetailModel, userId, anonymousUserId);
                 return Ok(result);
             }
             catch (UnauthorizedException ex)
@@ -159,11 +155,11 @@ namespace ResumeSpy.UI.Controllers
             // Authorization: only resume owner (user) or matching guest session can copy.
             var existingResume = await _resumeService.GetResume(existingDetail.ResumeId);
             var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-            var guestSessionId = HttpContext.GetGuestSessionId();
+            var anonymousUserId = HttpContext.GetAnonymousUserId();
 
             var isAuthorized =
                 (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
-                (guestSessionId.HasValue && existingResume.GuestSessionId == guestSessionId);
+                (anonymousUserId.HasValue && existingResume.AnonymousUserId == anonymousUserId);
 
             if (!isAuthorized)
             {

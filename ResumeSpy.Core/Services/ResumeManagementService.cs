@@ -15,7 +15,7 @@ namespace ResumeSpy.Core.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly ITranslationService _translationService;
         private readonly IImageGenerationService _imageGenerationService;
-        private readonly IGuestSessionService _guestSessionService;
+        private readonly IAnonymousUserService _anonymousUserService;
 
         public ResumeManagementService(
             IResumeService resumeService,
@@ -23,32 +23,32 @@ namespace ResumeSpy.Core.Services
             IUnitOfWork unitOfWork,
             ITranslationService translationService,
             IImageGenerationService imageGenerationService,
-            IGuestSessionService guestSessionService)
+            IAnonymousUserService anonymousUserService)
         {
             _resumeService = resumeService;
             _resumeDetailService = resumeDetailService;
             _unitOfWork = unitOfWork;
             _translationService = translationService;
             _imageGenerationService = imageGenerationService;
-            _guestSessionService = guestSessionService;
+            _anonymousUserService = anonymousUserService;
         }
 
-        public async Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model, string? userId = null, Guid? guestSessionId = null, string? ipAddress = null)
+        public async Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model, string? userId = null, Guid? anonymousUserId = null)
         {
             var isFirstTime = string.IsNullOrEmpty(model.ResumeId) || model.ResumeId == "undefined";
 
-            // Validate guest quota for first-time resume creation
+            // Validate anonymous user quota for first-time resume creation
             if (isFirstTime && string.IsNullOrEmpty(userId))
             {
-                if (!guestSessionId.HasValue)
+                if (!anonymousUserId.HasValue)
                 {
-                    throw new UnauthorizedException("Guest session not found.");
+                    throw new UnauthorizedException("Anonymous user identity not found.");
                 }
 
-                var hasReachedLimit = await _guestSessionService.HasReachedResumeLimitAsync(guestSessionId.Value);
+                var hasReachedLimit = await _anonymousUserService.HasReachedResumeLimitAsync(anonymousUserId.Value);
                 if (hasReachedLimit)
                 {
-                    throw new QuotaExceededException("Guest resume limit reached. Please register to create more resumes.");
+                    throw new QuotaExceededException("Resume limit reached. Please register to create more resumes.");
                 }
             }
 
@@ -72,7 +72,7 @@ namespace ResumeSpy.Core.Services
 
             // Case 2: Resume doesn't exist (ResumeId is null, empty, or "undefined")
             // Create Resume first, then ResumeDetail in a transaction
-            return await CreateResumeDetailWithNewResume(model, userId, guestSessionId, ipAddress);
+            return await CreateResumeDetailWithNewResume(model, userId, anonymousUserId);
         }
 
         private async Task<ResumeDetailViewModel> CreateResumeDetailForExistingResume(ResumeDetailViewModel model)
@@ -92,9 +92,9 @@ namespace ResumeSpy.Core.Services
             return result;
         }
 
-        private async Task<ResumeDetailViewModel> CreateResumeDetailWithNewResume(ResumeDetailViewModel model, string? userId = null, Guid? guestSessionId = null, string? ipAddress = null)
+        private async Task<ResumeDetailViewModel> CreateResumeDetailWithNewResume(ResumeDetailViewModel model, string? userId = null, Guid? anonymousUserId = null)
         {
-            var isGuest = guestSessionId.HasValue && string.IsNullOrEmpty(userId);
+            var isAnonymous = anonymousUserId.HasValue && string.IsNullOrEmpty(userId);
 
             await _unitOfWork.BeginTransactionAsync();
             try
@@ -102,12 +102,12 @@ namespace ResumeSpy.Core.Services
                 var newResumeId = Guid.NewGuid().ToString();
                 var newResumeDetailId = Guid.NewGuid().ToString();
 
-                if (isGuest)
+                if (isAnonymous)
                 {
-                    var acquired = await _guestSessionService.TryAcquireResumeSlotAsync(guestSessionId!.Value);
+                    var acquired = await _anonymousUserService.TryAcquireResumeSlotAsync(anonymousUserId!.Value);
                     if (!acquired)
                     {
-                        throw new QuotaExceededException("Guest resume limit reached. Please register to create more resumes.");
+                        throw new QuotaExceededException("Resume limit reached. Please register to create more resumes.");
                     }
                 }
 
@@ -117,7 +117,7 @@ namespace ResumeSpy.Core.Services
                     model.ResumeImgPath = await _imageGenerationService.GenerateThumbnailAsync(model.Content, $"{newResumeId}_{newResumeDetailId}");
                 }
 
-                // Create new Resume first with guest/user context
+                // Create new Resume first with anonymous/user context
                 var newResume = new ResumeViewModel
                 {
                     Id = newResumeId,
@@ -125,10 +125,9 @@ namespace ResumeSpy.Core.Services
                     ResumeDetailCount = 1,
                     ResumeImgPath = model.ResumeImgPath ?? "/assets/default_resume.png",
                     UserId = userId,
-                    GuestSessionId = isGuest ? guestSessionId : null,  // Only set if actually guest
-                    IsGuest = isGuest,  // Use the calculated variable
-                    CreatedIpAddress = ipAddress,
-                    ExpiresAt = isGuest ? DateTime.UtcNow.AddDays(30) : null
+                    AnonymousUserId = isAnonymous ? anonymousUserId : null,
+                    IsGuest = isAnonymous,
+                    ExpiresAt = isAnonymous ? DateTime.UtcNow.AddDays(30) : null
                 };
 
                 var createdResume = await _resumeService.Create(newResume);
@@ -280,16 +279,16 @@ namespace ResumeSpy.Core.Services
             }
         }
 
-        public async Task<int> ConvertGuestToUserAsync(Guid guestSessionId, string userId)
+        public async Task<int> ConvertAnonymousToUserAsync(Guid anonymousUserId, string userId)
         {
             await _unitOfWork.BeginTransactionAsync();
             try
             {
-                // Step 1: Reassign all guest resumes to the user
-                var resumeCount = await _resumeService.ReassignGuestResumesAsync(guestSessionId, userId);
+                // Step 1: Reassign all anonymous resumes to the user
+                var resumeCount = await _resumeService.ReassignAnonymousResumesAsync(anonymousUserId, userId);
 
-                // Step 2: Mark the guest session as converted
-                await _guestSessionService.ConvertGuestSessionAsync(guestSessionId, userId);
+                // Step 2: Mark the anonymous user as converted
+                await _anonymousUserService.ConvertToUserAsync(anonymousUserId, userId);
 
                 await _unitOfWork.CommitTransactionAsync();
                 return resumeCount;
@@ -302,25 +301,25 @@ namespace ResumeSpy.Core.Services
         }
 
         /// <summary>
-        /// Deletes a resume atomically, ensuring the guest session resume count is properly decremented.
-        /// This maintains quota consistency by reducing the counter when a guest resume is deleted.
+        /// Deletes a resume atomically, ensuring the anonymous user resume count is properly decremented.
+        /// This maintains quota consistency by reducing the counter when an anonymous resume is deleted.
         /// </summary>
-        public async Task DeleteResumeAtomicAsync(string resumeId, string? userId = null, Guid? guestSessionId = null)
+        public async Task DeleteResumeAtomicAsync(string resumeId, string? userId = null, Guid? anonymousUserId = null)
         {
             await _unitOfWork.BeginTransactionAsync();
             try
             {
-                // Fetch the resume to verify it exists and get its guest session
+                // Fetch the resume to verify it exists and get its anonymous user
                 var resume = await _resumeService.GetResume(resumeId);
                 if (resume == null)
                 {
                     throw new NotFoundException($"Resume with id {resumeId} not found.");
                 }
 
-                // Authorization check: user owns it or guest session matches
+                // Authorization check: user owns it or anonymous user matches
                 bool isAuthorized = 
                     (!string.IsNullOrEmpty(userId) && resume.UserId == userId) ||
-                    (guestSessionId.HasValue && resume.GuestSessionId == guestSessionId);
+                    (anonymousUserId.HasValue && resume.AnonymousUserId == anonymousUserId);
 
                 if (!isAuthorized)
                 {
@@ -330,10 +329,10 @@ namespace ResumeSpy.Core.Services
                 // Delete the resume
                 await _resumeService.Delete(resumeId);
 
-                // Decrement guest session counter if this was a guest resume
-                if (resume.IsGuest && resume.GuestSessionId.HasValue)
+                // Decrement anonymous user counter if this was an anonymous resume
+                if (resume.IsGuest && resume.AnonymousUserId.HasValue)
                 {
-                    await _guestSessionService.DecrementResumeCountAsync(resume.GuestSessionId.Value);
+                    await _anonymousUserService.DecrementResumeCountAsync(resume.AnonymousUserId.Value);
                 }
 
                 // Commit the transaction

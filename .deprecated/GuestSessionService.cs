@@ -202,7 +202,7 @@ namespace ResumeSpy.Infrastructure.Services
                 }
 
                 // Defensive: Count actual resumes to detect counter corruption
-                var actualResumes = await _resumeRepository.GetByGuestSessionIdAsync(sessionId);
+                var actualResumes = await _resumeRepository.GetByAnonymousUserIdAsync(sessionId);
                 var actualCount = actualResumes?.Count ?? 0;
                 var storedCount = session.ResumeCount;
 
@@ -254,7 +254,7 @@ namespace ResumeSpy.Infrastructure.Services
                 }
 
                 // Reconcile against authoritative resume count to guard against stale counters.
-                var actualCount = (await _resumeRepository.GetByGuestSessionIdAsync(sessionId)).Count;
+                var actualCount = (await _resumeRepository.GetByAnonymousUserIdAsync(sessionId)).Count;
                 var effectiveCount = session.ResumeCount;
 
                 if (session.ResumeCount != actualCount)
@@ -324,7 +324,12 @@ namespace ResumeSpy.Infrastructure.Services
                 var sessionIds = sessions.Select(s => s.Id).ToList();
 
                 // Count total resumes created from this IP across all sessions
-                var totalResumes = await _resumeRepository.CountGuestResumesBySessionsAsync(sessionIds);
+                // Legacy: count resumes for each session individually
+                var totalResumes = 0;
+                foreach (var sid in sessionIds)
+                {
+                    totalResumes += (await _resumeRepository.GetByAnonymousUserIdAsync(sid)).Count;
+                }
 
                 if (totalResumes >= _settings.MaxResumesPerIpPerDay)
                 {

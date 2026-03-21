@@ -16,7 +16,7 @@ namespace ResumeSpy.UI.Controllers
         private readonly IAuthService _authService;
         private readonly IResumeManagementService _resumeManagementService;
         private readonly ILogger<AuthController> _logger;
-        private const string GUEST_SESSION_COOKIE = "X-Guest-Session-Id";
+        private const string ANONYMOUS_ID_HEADER = "X-Anonymous-Id";
 
         public AuthController(
             IAuthService authService, 
@@ -159,7 +159,7 @@ namespace ResumeSpy.UI.Controllers
         }
 
         /// <summary>
-        /// Attempts to convert a guest session to a registered user.
+        /// Attempts to convert an anonymous user to a registered user.
         /// Errors are logged but do not fail the authentication flow.
         /// </summary>
         private async Task TryConvertGuestSessionAsync(string? userId)
@@ -171,29 +171,21 @@ namespace ResumeSpy.UI.Controllers
                     return;
                 }
 
-                if (Request.Cookies.TryGetValue(GUEST_SESSION_COOKIE, out var sessionIdStr) &&
-                    Guid.TryParse(sessionIdStr, out var sessionGuid))
+                if (Request.Headers.TryGetValue(ANONYMOUS_ID_HEADER, out var anonymousIdStr) &&
+                    Guid.TryParse(anonymousIdStr.ToString(), out var anonymousUserId))
                 {
-                    var resumeCount = await _resumeManagementService.ConvertGuestToUserAsync(sessionGuid, userId);
+                    var resumeCount = await _resumeManagementService.ConvertAnonymousToUserAsync(anonymousUserId, userId);
                     
                     if (resumeCount > 0)
                     {
-                        _logger.LogInformation($"Converted {resumeCount} guest resumes to user {userId} from session {sessionGuid}");
+                        _logger.LogInformation("Converted {ResumeCount} anonymous resumes to user {UserId} from anonymous user {AnonymousUserId}", resumeCount, userId, anonymousUserId);
                     }
-                    
-                    // Clear the guest session cookie after conversion
-                    Response.Cookies.Delete(GUEST_SESSION_COOKIE, new CookieOptions
-                    {
-                        Path = "/",
-                        SameSite = SameSiteMode.None,
-                        Secure = true
-                    });
                 }
             }
             catch (Exception ex)
             {
                 // Log the error but don't fail the authentication
-                _logger.LogError(ex, $"Failed to convert guest session for user {userId}. User can still log in.");
+                _logger.LogError(ex, "Failed to convert anonymous user for user {UserId}. User can still log in.", userId);
             }
         }
     }

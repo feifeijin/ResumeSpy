@@ -16,7 +16,7 @@ namespace ResumeSpy.Infrastructure.Data
         public DbSet<ResumeDetail> ResumeDetails { get; set; }
         public DbSet<UserRefreshToken> UserRefreshTokens { get; set; }
         public DbSet<EmailLoginToken> EmailLoginTokens { get; set; }
-        public DbSet<GuestSession> GuestSessions { get; set; }
+        public DbSet<AnonymousUser> AnonymousUsers { get; set; }
 
         #endregion
 
@@ -88,30 +88,22 @@ namespace ResumeSpy.Infrastructure.Data
             builder.Entity<Resume>(entity =>
             {
                 entity.HasIndex(e => e.UserId);
-                entity.HasIndex(e => e.GuestSessionId);
-                entity.HasIndex(e => new { e.UserId, e.GuestSessionId });
+                entity.HasIndex(e => e.AnonymousUserId);
+                entity.HasIndex(e => new { e.UserId, e.AnonymousUserId });
                 
                 entity.HasOne(e => e.User)
                     .WithMany(u => u.Resumes)
                     .HasForeignKey(e => e.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
                 
-                entity.HasOne(e => e.GuestSession)
+                entity.HasOne(e => e.AnonymousUser)
                     .WithMany()
-                    .HasForeignKey(e => e.GuestSessionId)
+                    .HasForeignKey(e => e.AnonymousUserId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
 
-            builder.Entity<GuestSession>(entity =>
+            builder.Entity<AnonymousUser>(entity =>
             {
-                entity.Property(e => e.IpAddress)
-                    .IsRequired()
-                    .HasMaxLength(45); // IPv6 max length
-                
-                entity.Property(e => e.UserAgent)
-                    .HasMaxLength(512);
-                
-                entity.HasIndex(e => e.ExpiresAt);
                 entity.HasIndex(e => e.IsConverted);
                 
                 entity.HasOne(e => e.ConvertedUser)

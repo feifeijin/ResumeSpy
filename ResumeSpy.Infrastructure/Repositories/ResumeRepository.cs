@@ -15,10 +15,10 @@ namespace ResumeSpy.Infrastructure.Repositories
             
         }
 
-        public async Task<List<Resume>> GetByGuestSessionIdAsync(Guid guestSessionId)
+        public async Task<List<Resume>> GetByAnonymousUserIdAsync(Guid anonymousUserId)
         {
             return await DbSet
-                .Where(r => r.GuestSessionId == guestSessionId)
+                .Where(r => r.AnonymousUserId == anonymousUserId)
                 .ToListAsync();
         }
 
@@ -27,18 +27,6 @@ namespace ResumeSpy.Infrastructure.Repositories
             return await DbSet
                 .Where(r => r.UserId == userId)
                 .ToListAsync();
-        }
-
-        public async Task<int> CountGuestResumesBySessionsAsync(List<Guid> sessionIds)
-        {
-            if (sessionIds == null || !sessionIds.Any())
-            {
-                return 0;
-            }
-
-            return await DbSet
-                .Where(r => r.GuestSessionId != null && sessionIds.Contains(r.GuestSessionId.Value))
-                .CountAsync();
         }
     }
 }
