@@ -83,7 +83,7 @@ namespace ResumeSpy.UI.Controllers
             }
 
             // Convert guest session to user if exists
-            await TryConvertGuestSessionAsync(user.Id);
+            var convertedCount = await TryConvertGuestSessionAsync(user.Id);
 
             return Ok(new AuthSyncResponse
             {
@@ -91,7 +91,8 @@ namespace ResumeSpy.UI.Controllers
                 UserId = user.Id,
                 Email = user.Email,
                 DisplayName = user.DisplayName,
-                IsNewUser = isNewUser
+                IsNewUser = isNewUser,
+                ConvertedResumeCount = convertedCount
             });
         }
 
@@ -107,13 +108,16 @@ namespace ResumeSpy.UI.Controllers
         /// Attempts to convert an anonymous user to a registered user.
         /// Errors are logged but do not fail the authentication flow.
         /// </summary>
-        private async Task TryConvertGuestSessionAsync(string? userId)
+        /// <summary>
+        /// Returns the number of converted resumes, or -1 if conversion failed.
+        /// </summary>
+        private async Task<int> TryConvertGuestSessionAsync(string? userId)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(userId))
                 {
-                    return;
+                    return 0;
                 }
 
                 if (Request.Headers.TryGetValue(ANONYMOUS_ID_HEADER, out var anonymousIdStr) &&
@@ -125,12 +129,15 @@ namespace ResumeSpy.UI.Controllers
                     {
                         _logger.LogInformation("Converted {ResumeCount} anonymous resumes to user {UserId} from anonymous user {AnonymousUserId}", resumeCount, userId, anonymousUserId);
                     }
+                    return resumeCount;
                 }
+                return 0;
             }
             catch (Exception ex)
             {
                 // Log the error but don't fail the authentication
                 _logger.LogError(ex, "Failed to convert anonymous user for user {UserId}. User can still log in.", userId);
+                return -1;
             }
         }
     }

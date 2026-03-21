@@ -9,5 +9,6 @@ namespace ResumeSpy.Core.Interfaces.IRepositories
         Task BeginTransactionAsync();
         Task CommitTransactionAsync();
         Task RollbackTransactionAsync();
+        void DetachEntity(object entity);
     }
 }

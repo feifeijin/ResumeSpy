@@ -46,11 +46,23 @@ namespace ResumeSpy.Infrastructure.Services
                 UpdateDate = DateTime.UtcNow
             };
 
-            await _anonymousUserRepository.Create(user);
-            await _unitOfWork.SaveChangesAsync();
-
-            _logger.LogInformation("Anonymous user created: {AnonymousUserId}", anonymousUserId);
-            return user;
+            try
+            {
+                await _anonymousUserRepository.Create(user);
+                await _unitOfWork.SaveChangesAsync();
+                _logger.LogInformation("Anonymous user created: {AnonymousUserId}", anonymousUserId);
+                return user;
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+                when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+            {
+                // Race condition: another concurrent request already inserted this user.
+                // Detach the failed entity and fetch the existing one.
+                _logger.LogDebug("Anonymous user {AnonymousUserId} already exists (concurrent insert), fetching existing record", anonymousUserId);
+                _unitOfWork.DetachEntity(user);
+                return await _anonymousUserRepository.FindByIdAsync(anonymousUserId)
+                    ?? throw new InvalidOperationException($"Anonymous user {anonymousUserId} not found after concurrent insert");
+            }
         }
 
         public async Task<AnonymousUser?> GetAsync(Guid anonymousUserId)

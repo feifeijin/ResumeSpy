@@ -7,6 +7,7 @@ namespace ResumeSpy.Core.Entities.Business.Auth
         public string? Email { get; set; }
         public string? DisplayName { get; set; }
         public bool IsNewUser { get; set; }
+        public int ConvertedResumeCount { get; set; }
         public IEnumerable<string> Errors { get; set; } = Array.Empty<string>();
     }
 }

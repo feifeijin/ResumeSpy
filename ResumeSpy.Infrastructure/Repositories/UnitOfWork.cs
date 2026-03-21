@@ -45,6 +45,11 @@ namespace ResumeSpy.Infrastructure.Repositories
             return await _context.SaveChangesAsync();
         }
 
+        public void DetachEntity(object entity)
+        {
+            _context.Entry(entity).State = EntityState.Detached;
+        }
+
         public void Dispose()
         {
             _transaction?.Dispose();
