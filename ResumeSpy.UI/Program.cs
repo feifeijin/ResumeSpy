@@ -14,9 +14,15 @@ using ResumeSpy.UI.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var connectionString = builder.Configuration.GetConnectionString("PrimaryDbConnection");
+if (string.IsNullOrEmpty(connectionString))
+    throw new InvalidOperationException(
+        "ConnectionStrings:PrimaryDbConnection is not configured. Set it in appsettings.Development.json (local) " +
+        "or the ConnectionStrings__PrimaryDbConnection environment variable (deployed).");
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    options.UseNpgsql(builder.Configuration.GetConnectionString("PrimaryDbConnection"));
+    options.UseNpgsql(connectionString);
 });
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -87,6 +93,12 @@ builder.Services.Configure<GuestSessionSettings>(builder.Configuration.GetSectio
 var jwtSettingsSection = builder.Configuration.GetSection("Jwt");
 builder.Services.Configure<JwtSettings>(jwtSettingsSection);
 var jwtSettings = jwtSettingsSection.Get<JwtSettings>() ?? new JwtSettings();
+
+if (string.IsNullOrEmpty(jwtSettings.SigningKey))
+    throw new InvalidOperationException(
+        "Jwt:SigningKey is not configured. Set it in appsettings.Development.json (local) " +
+        "or the Jwt__SigningKey environment variable (deployed).");
+
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SigningKey));
 
 var tokenValidationParameters = new TokenValidationParameters
@@ -174,6 +186,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
 app.Run();
 

@@ -52,6 +52,28 @@ jobs:
           fi
           curl -fsS -X POST "${RENDER_DEPLOY_HOOK_URL}"
 
+      - name: Wait for deployment to be healthy
+        env:
+          HEALTH_URL: ${{ vars.DEV_HEALTH_URL }}
+        run: |
+          if [[ -z "${HEALTH_URL}" ]]; then
+            echo "::warning::DEV_HEALTH_URL not configured, skipping health check"
+            exit 0
+          fi
+          echo "Waiting 60s for Render to start building..."
+          sleep 60
+          echo "Polling ${HEALTH_URL} ..."
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "${HEALTH_URL}" > /dev/null 2>&1; then
+              echo "✅ Health check passed on attempt ${i}"
+              exit 0
+            fi
+            echo "Attempt ${i}/30 failed, retrying in 20s..."
+            sleep 20
+          done
+          echo "❌ Health check failed after 30 attempts (10+ minutes)"
+          exit 1
+
   deploy-prod:
     name: Deploy to PROD
     needs: build-and-test
@@ -68,4 +90,27 @@ jobs:
             echo "RENDER_PROD_DEPLOY_HOOK_URL is not set."
             exit 1
           fi
+          curl -fsS -X POST "${RENDER_DEPLOY_HOOK_URL}"
+
+      - name: Wait for deployment to be healthy
+        env:
+          HEALTH_URL: ${{ vars.PROD_HEALTH_URL }}
+        run: |
+          if [[ -z "${HEALTH_URL}" ]]; then
+            echo "::warning::PROD_HEALTH_URL not configured, skipping health check"
+            exit 0
+          fi
+          echo "Waiting 60s for Render to start building..."
+          sleep 60
+          echo "Polling ${HEALTH_URL} ..."
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "${HEALTH_URL}" > /dev/null 2>&1; then
+              echo "✅ Health check passed on attempt ${i}"
+              exit 0
+            fi
+            echo "Attempt ${i}/30 failed, retrying in 20s..."
+            sleep 20
+          done
+          echo "❌ Health check failed after 30 attempts (10+ minutes)"
+          exit 1
           curl -fsS -X POST "${RENDER_DEPLOY_HOOK_URL}"
