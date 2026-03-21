@@ -7,5 +7,6 @@ namespace ResumeSpy.Core.Interfaces.IRepositories
     {
          Task<List<Resume>> GetByAnonymousUserIdAsync(Guid anonymousUserId);
          Task<List<Resume>> GetByUserIdAsync(string userId);
+         Task<int> CountGuestResumesBySessionsAsync(List<Guid> sessionIds);
     }
 }

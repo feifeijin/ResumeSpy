@@ -28,5 +28,15 @@ namespace ResumeSpy.Infrastructure.Repositories
                 .Where(r => r.UserId == userId)
                 .ToListAsync();
         }
+
+        public async Task<int> CountGuestResumesBySessionsAsync(List<Guid> sessionIds)
+        {
+            if (sessionIds == null || sessionIds.Count == 0)
+                return 0;
+
+            return await DbSet
+                .Where(r => r.AnonymousUserId.HasValue && sessionIds.Contains(r.AnonymousUserId.Value))
+                .CountAsync();
+        }
     }
 }
