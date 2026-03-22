@@ -22,11 +22,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      # Step 2: Set up .NET 9.0 SDK
-      - name: Setup .NET 9.0
+      # Step 2: Set up .NET SDK (10.x for tests; can also build net9.0 production projects)
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
       
       # Step 3: Restore dependencies
       - name: Restore dependencies
