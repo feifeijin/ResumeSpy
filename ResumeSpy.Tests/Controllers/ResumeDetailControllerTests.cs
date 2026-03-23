@@ -20,6 +20,8 @@ public class ResumeDetailControllerTests
     private readonly Mock<ITranslationService> _translationService = new();
     private readonly Mock<IResumeManagementService> _resumeManagementService = new();
     private readonly Mock<IResumeService> _resumeService = new();
+    private readonly Mock<IPdfExportService> _pdfExportService = new();
+    private readonly Mock<IResumeTailoringService> _tailoringService = new();
 
     private ResumeDetailController CreateController(string? userId = null, Guid? anonymousUserId = null)
     {
@@ -29,7 +31,9 @@ public class ResumeDetailControllerTests
             _memoryCache.Object,
             _translationService.Object,
             _resumeManagementService.Object,
-            _resumeService.Object);
+            _resumeService.Object,
+            _pdfExportService.Object,
+            _tailoringService.Object);
 
         var context = new DefaultHttpContext();
         if (!string.IsNullOrWhiteSpace(userId))

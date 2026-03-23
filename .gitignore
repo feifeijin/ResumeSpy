@@ -18,3 +18,7 @@ Scripts/LocalDev/
 
 # Production config (secrets injected at deploy time)
 ResumeSpy.UI/appsettings.Production.json
+
+# Local/Dev environment files
+.env.local
+.env.dev

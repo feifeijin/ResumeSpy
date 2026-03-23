@@ -20,6 +20,8 @@ namespace ResumeSpy.UI.Controllers
         private readonly ITranslationService _translationService;
         private readonly IResumeManagementService _resumeManagementService;
         private readonly IResumeService _resumeService;
+        private readonly IPdfExportService _pdfExportService;
+        private readonly IResumeTailoringService _tailoringService;
 
         public ResumeDetailController(
             ILogger<ResumeDetailController> logger,
@@ -27,7 +29,9 @@ namespace ResumeSpy.UI.Controllers
             IMemoryCache memoryCache,
             ITranslationService translationService,
             IResumeManagementService resumeManagementService,
-            IResumeService resumeService)
+            IResumeService resumeService,
+            IPdfExportService pdfExportService,
+            IResumeTailoringService tailoringService)
         {
             _logger = logger;
             _resumeDetailService = resumeDetailService;
@@ -35,6 +39,8 @@ namespace ResumeSpy.UI.Controllers
             _translationService = translationService;
             _resumeManagementService = resumeManagementService;
             _resumeService = resumeService;
+            _pdfExportService = pdfExportService;
+            _tailoringService = tailoringService;
         }
 
         [HttpGet]
@@ -214,6 +220,72 @@ namespace ResumeSpy.UI.Controllers
             }
         }
 
+        [HttpGet("{id}/export/pdf")]
+        public async Task<IActionResult> ExportResumeDetailAsPdfAsync(string id)
+        {
+            var detail = await _resumeDetailService.GetResumeDetail(id);
+            if (detail == null)
+                return NotFound();
+
+            var existingResume = await _resumeService.GetResume(detail.ResumeId);
+            var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var anonymousUserId = HttpContext.GetAnonymousUserId();
+
+            var isAuthorized =
+                (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
+                (anonymousUserId.HasValue && existingResume.AnonymousUserId == anonymousUserId);
+
+            if (!isAuthorized)
+                return Forbid();
+
+            try
+            {
+                var detailName = detail.Name ?? "Resume";
+                var pdfBytes = await _pdfExportService.GeneratePdfAsync(detail.Content, detailName);
+                var fileName = $"{detailName}_{DateTime.UtcNow:yyyyMMdd}.pdf";
+                return File(pdfBytes, "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating PDF for detail {Id}", id);
+                return StatusCode(500, "An error occurred while generating the PDF");
+            }
+        }
+
+        [HttpPost("{id}/tailor")]
+        public async Task<ActionResult<object>> TailorResumeDetailAsync(string id, [FromBody] TailorRequest request)
+        {
+            var detail = await _resumeDetailService.GetResumeDetail(id);
+            if (detail == null)
+                return NotFound();
+
+            var existingResume = await _resumeService.GetResume(detail.ResumeId);
+            var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var anonymousUserId = HttpContext.GetAnonymousUserId();
+
+            var isAuthorized =
+                (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
+                (anonymousUserId.HasValue && existingResume.AnonymousUserId == anonymousUserId);
+
+            if (!isAuthorized)
+                return Forbid();
+
+            try
+            {
+                var tailoredContent = await _tailoringService.TailorResumeAsync(
+                    detail.Content,
+                    request.JobDescription,
+                    detail.Language);
+
+                return Ok(new { content = tailoredContent });
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "AI tailoring failed for detail {Id}", id);
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
         [HttpPost("{id}/sync-translations")]
         public async Task<IActionResult> SyncResumeDetailTranslationsAsync(string id)
         {
@@ -257,5 +329,10 @@ namespace ResumeSpy.UI.Controllers
     {
         public required string ExistingResumeDetailId { get; set; }
         public required string Language { get; set; }
+    }
+
+    public class TailorRequest
+    {
+        public required string JobDescription { get; set; }
     }
 }

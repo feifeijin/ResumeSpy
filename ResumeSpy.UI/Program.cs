@@ -11,13 +11,17 @@ using ResumeSpy.Infrastructure.Configuration;
 using ResumeSpy.Core.Entities.General;
 using ResumeSpy.UI.Swagger;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("PrimaryDbConnection");
+var envConnection = Environment.GetEnvironmentVariable("DB_CONNECTION");
+var connectionString = !string.IsNullOrEmpty(envConnection)
+    ? envConnection
+    : builder.Configuration.GetConnectionString("PrimaryDbConnection");
 if (string.IsNullOrEmpty(connectionString))
     throw new InvalidOperationException(
-        "ConnectionStrings:PrimaryDbConnection is not configured. Set it in appsettings.Development.json (local) " +
-        "or the ConnectionStrings__PrimaryDbConnection environment variable (deployed).");
+        "DB_CONNECTION environment variable or ConnectionStrings:PrimaryDbConnection is not configured. " +
+        "Set it in .env.local, .env.dev, or appsettings.Development.json.");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
@@ -134,7 +138,7 @@ builder.Services.AddCors(options =>
                     return false;
 
                 // Local frontend development
-                if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) && uri.Port == 5173)
+                if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) && (uri.Port == 5173 || uri.Port == 7227))
                     return true;
 
                 // Known production Vercel domain
