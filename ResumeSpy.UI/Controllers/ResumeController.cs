@@ -225,7 +225,7 @@ namespace ResumeSpy.UI.Controllers
                     return Forbid();
                 }
                 
-                var clonedResume = await _resumeManagementService.CloneResumeAsync(id);
+                var clonedResume = await _resumeManagementService.CloneResumeAsync(id, userId, anonymousUserId);
                 return CreatedAtAction(nameof(GetResume), new { id = clonedResume.Id }, clonedResume);
             }
             catch (Exception ex)

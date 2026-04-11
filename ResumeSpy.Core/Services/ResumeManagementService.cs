@@ -149,11 +149,28 @@ namespace ResumeSpy.Core.Services
             }
         }
 
-        public async Task<ResumeViewModel> CloneResumeAsync(string resumeId)
+        public async Task<ResumeViewModel> CloneResumeAsync(string resumeId, string? userId = null, Guid? anonymousUserId = null)
         {
+            var isAnonymous = anonymousUserId.HasValue && string.IsNullOrEmpty(userId);
+
             await _unitOfWork.BeginTransactionAsync();
             try
             {
+                if (isAnonymous)
+                {
+                    var hasReachedLimit = await _anonymousUserService.HasReachedResumeLimitAsync(anonymousUserId!.Value);
+                    if (hasReachedLimit)
+                    {
+                        throw new QuotaExceededException("Resume limit reached. Please register to create more resumes.");
+                    }
+
+                    var acquired = await _anonymousUserService.TryAcquireResumeSlotAsync(anonymousUserId!.Value);
+                    if (!acquired)
+                    {
+                        throw new QuotaExceededException("Resume limit reached. Please register to create more resumes.");
+                    }
+                }
+
                 // Get the original resume
                 var originalResume = await _resumeService.GetResume(resumeId);
 
@@ -163,10 +180,14 @@ namespace ResumeSpy.Core.Services
                     Id = Guid.NewGuid().ToString(),
                     Title = originalResume.Title + " (Copy)",
                     ResumeDetailCount = originalResume.ResumeDetailCount,
-                    ResumeImgPath = originalResume.ResumeImgPath
+                    ResumeImgPath = originalResume.ResumeImgPath,
+                    UserId = userId,
+                    AnonymousUserId = isAnonymous ? anonymousUserId : null,
+                    IsGuest = isAnonymous,
+                    ExpiresAt = isAnonymous ? DateTime.UtcNow.AddDays(30) : null
                 };
 
-                // Create the cloned resume (this will call SaveChanges, but within our transaction)
+                // Create the cloned resume
                 var createdResume = await _resumeService.Create(clonedResume);
 
                 // Get all ResumeDetails from the original resume
@@ -195,11 +216,12 @@ namespace ResumeSpy.Core.Services
                         IsDefault = originalDetail.IsDefault
                     };
 
-                    // Create the cloned detail (this will call SaveChanges, but within our transaction)
+                    // Create the cloned detail
                     await _resumeDetailService.Create(clonedDetail);
                 }
 
-                // Commit the transaction - all individual SaveChanges calls are part of this transaction
+                // Save all changes within the transaction
+                await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
                 return createdResume;
             }

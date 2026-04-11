@@ -19,8 +19,10 @@ namespace ResumeSpy.Core.Interfaces.IServices
         /// Clones a Resume and all its associated ResumeDetails in a single transaction.
         /// </summary>
         /// <param name="resumeId">The ID of the Resume to clone</param>
+        /// <param name="userId">Optional user ID for authenticated users</param>
+        /// <param name="anonymousUserId">Optional anonymous user ID for unauthenticated users</param>
         /// <returns>The cloned Resume with new ID</returns>
-        Task<ResumeViewModel> CloneResumeAsync(string resumeId);
+        Task<ResumeViewModel> CloneResumeAsync(string resumeId, string? userId = null, Guid? anonymousUserId = null);
 
         /// <summary>
         /// Sets a ResumeDetail as the default and updates the Resume's image path accordingly.
