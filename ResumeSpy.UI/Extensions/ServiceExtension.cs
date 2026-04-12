@@ -27,6 +27,7 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IAnonymousUserService, AnonymousUserService>();
             services.AddScoped<IPdfExportService, PdfExportService>();
             services.AddScoped<IResumeTailoringService, ResumeTailoringService>();
+            services.AddScoped<IResumeImportService, ResumeImportService>();
 
             // Translation Services
             services.AddScoped<ITranslationService, TranslationService>();
