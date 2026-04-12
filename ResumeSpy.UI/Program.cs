@@ -145,6 +145,10 @@ builder.Services.AddCors(options =>
                 if (uri.Host.Equals("resume-spy-web.vercel.app", StringComparison.OrdinalIgnoreCase))
                     return true;
 
+                // Custom subdomain
+                if (uri.Host.Equals("resumespy.feifeijin.com", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
                 // Vercel preview domains for this project/user namespace
                 if (uri.Host.EndsWith("-feifeijins-projects.vercel.app", StringComparison.OrdinalIgnoreCase))
                     return true;
