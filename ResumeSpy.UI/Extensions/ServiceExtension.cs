@@ -28,6 +28,8 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IPdfExportService, PdfExportService>();
             services.AddScoped<IResumeTailoringService, ResumeTailoringService>();
             services.AddScoped<IResumeImportService, ResumeImportService>();
+            services.AddScoped<IResumeVersionService, ResumeVersionService>();
+            services.AddScoped<IResumeChatService, ResumeChatService>();
 
             // Translation Services
             services.AddScoped<ITranslationService, TranslationService>();
@@ -48,6 +50,7 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IResumeRepository, ResumeRepository>();
             services.AddScoped<IResumeDetailRepository, ResumeDetailRepository>();
             services.AddScoped<IAnonymousUserRepository, AnonymousUserRepository>();
+            services.AddScoped<IResumeVersionRepository, ResumeVersionRepository>();
             services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             #endregion

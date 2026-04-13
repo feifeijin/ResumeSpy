@@ -16,6 +16,7 @@ namespace ResumeSpy.Infrastructure.Data
         public DbSet<ResumeDetail> ResumeDetails { get; set; }
         public DbSet<AnonymousUser> AnonymousUsers { get; set; }
         public DbSet<GuestSession> GuestSessions { get; set; }
+        public DbSet<ResumeVersion> ResumeVersions { get; set; }
 
         #endregion
 
@@ -74,6 +75,19 @@ namespace ResumeSpy.Infrastructure.Data
                     .WithMany()
                     .HasForeignKey(e => e.AnonymousUserId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<ResumeVersion>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).ValueGeneratedNever();
+                entity.HasIndex(e => e.ResumeDetailId);
+                entity.HasIndex(e => e.CreatedAt);
+
+                entity.HasOne(e => e.ResumeDetail)
+                    .WithMany()
+                    .HasForeignKey(e => e.ResumeDetailId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<AnonymousUser>(entity =>
