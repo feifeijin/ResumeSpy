@@ -244,20 +244,23 @@ namespace ResumeSpy.Core.Services
                 var allResumeDetails = (await _resumeDetailService.GetResumeDetailsByResumeId(newDefaultResumeDetail.ResumeId)).ToList();
                 var currentDefaultDetail = allResumeDetails.FirstOrDefault(d => d.IsDefault && d.Id != resumeDetailId);
 
-                // If there is a different default detail, unset it
+                // Unset the old default — flag-only change, no thumbnail regeneration needed
                 if (currentDefaultDetail != null)
                 {
                     currentDefaultDetail.IsDefault = false;
-                    await _resumeDetailService.Update(currentDefaultDetail);
+                    await _resumeDetailService.UpdateFlagsOnly(currentDefaultDetail);
                 }
 
-                // Set the new default
+                // Set new default and regenerate its thumbnail
                 newDefaultResumeDetail.IsDefault = true;
                 await _resumeDetailService.Update(newDefaultResumeDetail);
 
-                // Update the Resume's image path to match the new default ResumeDetail
+                // Re-fetch to get the newly generated thumbnail path
+                var updatedDetail = await _resumeDetailService.GetResumeDetail(resumeDetailId);
+
+                // Sync the parent Resume's image path to the new default's fresh thumbnail
                 var resume = await _resumeService.GetResume(newDefaultResumeDetail.ResumeId);
-                resume.ResumeImgPath = newDefaultResumeDetail.ResumeImgPath ?? "/assets/default_resume.png";
+                resume.ResumeImgPath = updatedDetail.ResumeImgPath ?? "/assets/default_resume.png";
                 await _resumeService.Update(resume);
 
                 await _unitOfWork.CommitTransactionAsync();
@@ -274,13 +277,14 @@ namespace ResumeSpy.Core.Services
             await _unitOfWork.BeginTransactionAsync();
             try
             {
-                // 1. Update the ResumeDetail. This will also regenerate the thumbnail if content changed.
-
+                // 1. Update the detail — always regenerates thumbnail
                 await _resumeDetailService.Update(model);
 
+                // 2. Re-fetch to get the newly generated thumbnail path
                 var updatedResumeDetail = await _resumeDetailService.GetResumeDetail(model.Id);
 
-                // 2. If this is the default detail, update the parent Resume's image path.
+                // 3. Always sync the parent Resume's image path (not just when IsDefault)
+                //    so MySpy thumbnails stay current regardless of which tab was saved.
                 if (model.IsDefault)
                 {
                     var resume = await _resumeService.GetResume(model.ResumeId);

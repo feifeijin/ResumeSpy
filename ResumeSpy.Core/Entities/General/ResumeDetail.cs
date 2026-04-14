@@ -18,6 +18,7 @@ namespace ResumeSpy.Core.Entities.General
         public string? Content { get; set; }
         public string? ResumeImgPath { get; set; }
         public bool IsDefault { get; set; }
+        public int SortOrder { get; set; }
 
         public virtual Resume? Resume { get; set; }
     }

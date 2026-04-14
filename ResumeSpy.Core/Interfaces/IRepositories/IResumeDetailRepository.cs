@@ -5,5 +5,7 @@ namespace ResumeSpy.Core.Interfaces.IRepositories
     public interface IResumeDetailRepository:IBaseRepository<ResumeDetail>
     {
         Task<IEnumerable<ResumeDetail>>  GetResumeDetailsByResumeIdAsync(string resumeId);
+        Task<int> GetNextSortOrderAsync(string resumeId);
+        Task ReorderAsync(string resumeId, IEnumerable<string> orderedIds);
     }
 }

@@ -30,8 +30,9 @@ namespace ResumeSpy.Core.Services
         }
         public async Task<ResumeDetailViewModel> Create(ResumeDetailViewModel model)
         {
-             var entity = _resumeDetailMapper.MapModel(model);
-            entity.EntryDate    = DateTime.UtcNow;     
+            var entity = _resumeDetailMapper.MapModel(model);
+            entity.EntryDate = DateTime.UtcNow;
+            entity.SortOrder = await _resumeDetailRepository.GetNextSortOrderAsync(model.ResumeId);
             var result = await _resumeDetailRepository.Create(entity);
             await _unitOfWork.SaveChangesAsync();
             return _resumeDetailViewModelMapper.MapModel(result);
@@ -88,15 +89,16 @@ namespace ResumeSpy.Core.Services
                 throw new NotFoundException($"ResumeDetail with id {model.Id} not found.");
             }
 
-            // Regenerate thumbnail if content has changed
-            if (existingData.Content != model.Content && !string.IsNullOrWhiteSpace(model.Content))
+            // Always regenerate thumbnail on every save, delete the old one first
+            if (!string.IsNullOrWhiteSpace(model.Content))
             {
                 await _imageGenerationService.DeleteThumbnailAsync(existingData.ResumeImgPath);
                 existingData.ResumeImgPath = await _imageGenerationService.GenerateThumbnailAsync(model.Content, $"{model.ResumeId}_{model.Id}");
             }
-            else if (string.IsNullOrWhiteSpace(model.Content))
+            else
             {
-                existingData.ResumeImgPath = null; // Or a default placeholder path
+                await _imageGenerationService.DeleteThumbnailAsync(existingData.ResumeImgPath);
+                existingData.ResumeImgPath = null;
             }
 
             existingData.Content = model.Content;
@@ -104,6 +106,30 @@ namespace ResumeSpy.Core.Services
             existingData.UpdateDate = DateTime.UtcNow;
             existingData.IsDefault = model.IsDefault;
             existingData.Language = model.Language;
+            await _resumeDetailRepository.Update(existingData);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task ReorderDetails(string resumeId, IEnumerable<string> orderedIds)
+        {
+            await _resumeDetailRepository.ReorderAsync(resumeId, orderedIds);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Updates IsDefault, Name and Language flags only.
+        /// Does NOT regenerate or delete the thumbnail.
+        /// </summary>
+        public async Task UpdateFlagsOnly(ResumeDetailViewModel model)
+        {
+            var existingData = await _resumeDetailRepository.GetById(model.Id);
+            if (existingData == null)
+                throw new NotFoundException($"ResumeDetail with id {model.Id} not found.");
+
+            existingData.IsDefault = model.IsDefault;
+            existingData.Name = model.Name;
+            existingData.Language = model.Language;
+            existingData.UpdateDate = DateTime.UtcNow;
             await _resumeDetailRepository.Update(existingData);
             await _unitOfWork.SaveChangesAsync();
         }

@@ -205,6 +205,21 @@ namespace ResumeSpy.UI.Controllers
             return NoContent();
         }
 
+        [HttpPatch("reorder")]
+        public async Task<IActionResult> ReorderResumeDetailsAsync([FromBody] ReorderRequest request)
+        {
+            try
+            {
+                await _resumeDetailService.ReorderDetails(request.ResumeId, request.OrderedIds);
+                return Ok(new { message = "Order updated successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reordering resume details for resume {ResumeId}", request.ResumeId);
+                return StatusCode(500, "An error occurred while reordering resume details");
+            }
+        }
+
         [HttpPatch("{id}/set-default")]
         public async Task<IActionResult> SetDefaultResumeDetailAsync(string id)
         {
@@ -334,5 +349,11 @@ namespace ResumeSpy.UI.Controllers
     public class TailorRequest
     {
         public required string JobDescription { get; set; }
+    }
+
+    public class ReorderRequest
+    {
+        public required string ResumeId { get; set; }
+        public required List<string> OrderedIds { get; set; }
     }
 }

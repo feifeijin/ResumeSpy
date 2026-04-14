@@ -9,6 +9,7 @@ namespace ResumeSpy.Core.Entities.Business
         public required string Content { get; set; }
         public string? ResumeImgPath { get; set; }
         public bool IsDefault { get; set; }
+        public int SortOrder { get; set; }
         public  string? CreateTime { get; set; }
         public  string? LastModifyTime { get; set; }
 

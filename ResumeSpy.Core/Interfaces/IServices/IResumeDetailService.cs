@@ -16,6 +16,9 @@ namespace ResumeSpy.Core.Interfaces.IServices
         Task<bool> IsExistsForUpdate(string id, string key, string value);
         Task<ResumeDetailViewModel> Create(ResumeDetailViewModel model);
         Task Update(ResumeDetailViewModel model);
+        /// <summary>Updates IsDefault/Name/Language only — no thumbnail regeneration.</summary>
+        Task UpdateFlagsOnly(ResumeDetailViewModel model);
+        Task ReorderDetails(string resumeId, IEnumerable<string> orderedIds);
         Task Delete(string id);
     }
 }
