@@ -46,24 +46,21 @@ namespace ResumeSpy.Infrastructure.Services
 
         public async Task<string> GenerateThumbnailAsync(string text, string uniqueIdentifier)
         {
-            const float width = 400;
-            const float height = 300;
+            // Portrait 3:4 — matches the dossier card aspect-ratio in the UI
+            const float width  = 360;
+            const float height = 480;
 
             var plainText = Markdown.ToPlainText(text ?? string.Empty);
-            var sanitizedText = plainText.Length > 300 ? plainText[..300] + "..." : plainText;
-
-            if (string.IsNullOrWhiteSpace(sanitizedText))
-            {
-                sanitizedText = "Resume";
-            }
+            var sanitizedText = plainText.Length > 600 ? plainText[..600] + "…" : plainText;
+            if (string.IsNullOrWhiteSpace(sanitizedText)) sanitizedText = "Resume";
 
             var fontFamily = ResolveQuestPdfFontFamily();
-            var defaultTextStyle = TextStyle.Default.FontSize(14).FontColor("#323232").LineHeight(1.35f);
-
+            var defaultTextStyle = TextStyle.Default
+                .FontSize(11)
+                .FontColor("#323232")
+                .LineHeight(1.5f);
             if (!string.IsNullOrWhiteSpace(fontFamily))
-            {
                 defaultTextStyle = defaultTextStyle.FontFamily(fontFamily);
-            }
 
             var document = Document.Create(container =>
             {
@@ -71,13 +68,10 @@ namespace ResumeSpy.Infrastructure.Services
                 {
                     page.Size(width, height);
                     page.Margin(0);
-                    page.PageColor("#F0F0F0");
+                    page.PageColor("#FFFFFF");
                     page.DefaultTextStyle(defaultTextStyle);
 
-                    page.Content().Padding(20).AlignTop().Text(textComposer =>
-                    {
-                        textComposer.Span(sanitizedText);
-                    });
+                    page.Content().Padding(20).AlignTop().Text(sanitizedText);
                 });
             });
 
