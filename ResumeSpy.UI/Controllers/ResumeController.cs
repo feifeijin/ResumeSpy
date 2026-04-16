@@ -41,7 +41,7 @@ namespace ResumeSpy.UI.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ResumeViewModel>>> GetResumes()
         {
-            var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = HttpContext.GetEffectiveUserId();
             var anonymousUserId = HttpContext.GetAnonymousUserId();
             
             var resumes = (await _resumeService.GetResumes(userId, anonymousUserId))
@@ -59,7 +59,7 @@ namespace ResumeSpy.UI.Controllers
                 var resume = await _resumeService.GetResume(id);
                 
                 // Authorization check
-                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
                 
                 bool isAuthorized = 
@@ -84,7 +84,7 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
-                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
                 
                 // Authenticated users get full access
@@ -153,7 +153,7 @@ namespace ResumeSpy.UI.Controllers
                 var existingResume = await _resumeService.GetResume(id);
                 
                 // Authorization check
-                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
                 
                 bool isAuthorized = 
@@ -183,7 +183,7 @@ namespace ResumeSpy.UI.Controllers
                 var existingResume = await _resumeService.GetResume(id);
                 
                 // Authorization check
-                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
                 
                 bool isAuthorized = 
@@ -213,7 +213,7 @@ namespace ResumeSpy.UI.Controllers
                 var existingResume = await _resumeService.GetResume(id);
                 
                 // Authorization check
-                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
                 
                 bool isAuthorized = 
@@ -240,7 +240,7 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
-                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
 
                 // Use atomic deletion that properly handles anonymous user count decrement

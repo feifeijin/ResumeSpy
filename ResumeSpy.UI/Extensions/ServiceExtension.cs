@@ -6,6 +6,8 @@ using ResumeSpy.Core.Interfaces.AI;
 using ResumeSpy.Core.Interfaces.IMapper;
 using ResumeSpy.Core.Interfaces.IRepositories;
 using ResumeSpy.Core.Interfaces.IServices;
+using ResumeSpy.Core.Interfaces.Repositories;
+using ResumeSpy.Core.Interfaces.Services;
 using ResumeSpy.Core.Mapper;
 using ResumeSpy.Core.Services;
 using ResumeSpy.Infrastructure.Services.AI;
@@ -20,6 +22,7 @@ namespace ResumeSpy.UI.Extensions
         public static IServiceCollection RegisterService(this IServiceCollection services)
         {
             #region Services
+            services.AddScoped<IIdentityLinkingService, IdentityLinkingService>();
             services.AddScoped<IResumeService, ResumeService>();
             services.AddScoped<IResumeDetailService, ResumeDetailService>();
             services.AddScoped<IResumeManagementService, ResumeManagementService>();
@@ -51,6 +54,7 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IResumeDetailRepository, ResumeDetailRepository>();
             services.AddScoped<IAnonymousUserRepository, AnonymousUserRepository>();
             services.AddScoped<IResumeVersionRepository, ResumeVersionRepository>();
+            services.AddScoped<IUserIdentityRepository, UserIdentityRepository>();
             services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             #endregion

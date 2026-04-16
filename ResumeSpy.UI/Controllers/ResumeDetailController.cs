@@ -69,7 +69,7 @@ namespace ResumeSpy.UI.Controllers
         {
             try
             {
-                var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
 
                 resumeDetailModel.CreateTime = DateTime.UtcNow.ToShortDateString();
@@ -160,7 +160,7 @@ namespace ResumeSpy.UI.Controllers
 
             // Authorization: only resume owner (user) or matching guest session can copy.
             var existingResume = await _resumeService.GetResume(existingDetail.ResumeId);
-            var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = HttpContext.GetEffectiveUserId();
             var anonymousUserId = HttpContext.GetAnonymousUserId();
 
             var isAuthorized =
@@ -243,7 +243,7 @@ namespace ResumeSpy.UI.Controllers
                 return NotFound();
 
             var existingResume = await _resumeService.GetResume(detail.ResumeId);
-            var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = HttpContext.GetEffectiveUserId();
             var anonymousUserId = HttpContext.GetAnonymousUserId();
 
             var isAuthorized =
@@ -275,7 +275,7 @@ namespace ResumeSpy.UI.Controllers
                 return NotFound();
 
             var existingResume = await _resumeService.GetResume(detail.ResumeId);
-            var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = HttpContext.GetEffectiveUserId();
             var anonymousUserId = HttpContext.GetAnonymousUserId();
 
             var isAuthorized =

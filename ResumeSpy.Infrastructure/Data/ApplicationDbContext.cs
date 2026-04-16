@@ -17,6 +17,7 @@ namespace ResumeSpy.Infrastructure.Data
         public DbSet<AnonymousUser> AnonymousUsers { get; set; }
         public DbSet<GuestSession> GuestSessions { get; set; }
         public DbSet<ResumeVersion> ResumeVersions { get; set; }
+        public DbSet<UserIdentity> UserIdentities { get; set; }
 
         #endregion
 
@@ -58,6 +59,25 @@ namespace ResumeSpy.Infrastructure.Data
                 entity.Property(e => e.AvatarUrl).HasMaxLength(512);
                 entity.Property(e => e.JobTitle).HasMaxLength(128);
                 entity.Property(e => e.Organization).HasMaxLength(128);
+            });
+
+            builder.Entity<UserIdentity>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).ValueGeneratedOnAdd();
+                entity.Property(e => e.Provider).HasMaxLength(32).IsRequired();
+                entity.Property(e => e.ProviderUserId).HasMaxLength(256).IsRequired();
+                entity.Property(e => e.Email).HasMaxLength(256);
+
+                // Core uniqueness guarantee: one identity per provider+sub pair
+                entity.HasIndex(e => new { e.Provider, e.ProviderUserId }).IsUnique();
+                entity.HasIndex(e => e.UserId);
+                entity.HasIndex(e => e.Email);
+
+                entity.HasOne(e => e.User)
+                    .WithMany(u => u.Identities)
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<Resume>(entity =>

@@ -1,11 +1,11 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using ResumeSpy.Core.Entities.Business.Auth;
-using ResumeSpy.Core.Entities.General;
 using ResumeSpy.Core.Interfaces.IServices;
+using ResumeSpy.Core.Interfaces.Services;
+using ResumeSpy.UI.Middlewares;
 
 namespace ResumeSpy.UI.Controllers
 {
@@ -13,77 +13,69 @@ namespace ResumeSpy.UI.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IIdentityLinkingService _identityLinkingService;
         private readonly IResumeManagementService _resumeManagementService;
         private readonly ILogger<AuthController> _logger;
-        private const string ANONYMOUS_ID_HEADER = "X-Anonymous-Id";
+        private const string AnonymousIdHeader = "X-Anonymous-Id";
 
         public AuthController(
-            UserManager<ApplicationUser> userManager,
+            IIdentityLinkingService identityLinkingService,
             IResumeManagementService resumeManagementService,
             ILogger<AuthController> logger)
         {
-            _userManager = userManager;
+            _identityLinkingService = identityLinkingService;
             _resumeManagementService = resumeManagementService;
             _logger = logger;
         }
 
         /// <summary>
-        /// Syncs Supabase auth session with the local user database.
-        /// Called by the frontend after Supabase login to ensure a local user record exists.
+        /// Called by the frontend after every Supabase login.
+        /// Ensures the local user exists, links the identity provider if new,
+        /// and converts any guest resumes to the authenticated user.
         /// </summary>
         [HttpPost("sync")]
         [Authorize]
         public async Task<IActionResult> SyncSession()
         {
-            var supabaseUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            var providerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
                               ?? User.FindFirstValue("sub");
             var email = User.FindFirstValue(ClaimTypes.Email)
                      ?? User.FindFirstValue("email");
+            var provider = ExtractProvider();
 
-            if (string.IsNullOrWhiteSpace(supabaseUserId) || string.IsNullOrWhiteSpace(email))
-            {
+            if (string.IsNullOrWhiteSpace(providerUserId))
                 return Unauthorized(new AuthSyncResponse
                 {
                     Succeeded = false,
-                    Errors = new[] { "Invalid token: missing user ID or email." }
+                    Errors = new[] { "Invalid token: missing user ID." }
+                });
+
+            IdentityLinkingResult result;
+            try
+            {
+                result = await _identityLinkingService.ResolveUserAsync(new AuthCallbackContext(
+                    Provider: provider,
+                    ProviderUserId: providerUserId,
+                    Email: email,
+                    EmailVerified: true,
+                    DisplayName: ExtractDisplayName()
+                ));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Identity resolution failed for {Provider}/{ProviderUserId}", provider, providerUserId);
+                return StatusCode(500, new AuthSyncResponse
+                {
+                    Succeeded = false,
+                    Errors = new[] { "Failed to resolve user identity." }
                 });
             }
 
-            // Try to find existing user by Supabase ID first, then by email
-            var user = await _userManager.FindByIdAsync(supabaseUserId)
-                    ?? await _userManager.FindByEmailAsync(email);
-
-            var isNewUser = false;
-
-            if (user == null)
-            {
-                // Create a new local user record
-                user = new ApplicationUser
-                {
-                    Id = supabaseUserId,
-                    UserName = email,
-                    Email = email,
-                    EmailConfirmed = true,
-                    DisplayName = email.Split('@')[0]
-                };
-
-                var createResult = await _userManager.CreateAsync(user);
-                if (!createResult.Succeeded)
-                {
-                    return BadRequest(new AuthSyncResponse
-                    {
-                        Succeeded = false,
-                        Errors = createResult.Errors.Select(e => e.Description)
-                    });
-                }
-
-                isNewUser = true;
-                _logger.LogInformation("Created local user {UserId} for {Email}", supabaseUserId, email);
-            }
-
-            // Convert guest session to user if exists
+            var user = result.User;
             var convertedCount = await TryConvertGuestSessionAsync(user.Id);
+
+            if (result.IsNewIdentityLinked)
+                _logger.LogInformation("Provider {Provider} linked to existing user {UserId}", provider, user.Id);
 
             return Ok(new AuthSyncResponse
             {
@@ -91,7 +83,7 @@ namespace ResumeSpy.UI.Controllers
                 UserId = user.Id,
                 Email = user.Email,
                 DisplayName = user.DisplayName,
-                IsNewUser = isNewUser,
+                IsNewUser = result.IsNewUser,
                 ConvertedResumeCount = convertedCount
             });
         }
@@ -100,45 +92,60 @@ namespace ResumeSpy.UI.Controllers
         [Authorize]
         public IActionResult Logout()
         {
-            // Stateless — token revocation is handled by the Supabase client.
             return NoContent();
         }
 
-        /// <summary>
-        /// Attempts to convert an anonymous user to a registered user.
-        /// Errors are logged but do not fail the authentication flow.
-        /// </summary>
-        /// <summary>
-        /// Returns the number of converted resumes, or -1 if conversion failed.
-        /// </summary>
-        private async Task<int> TryConvertGuestSessionAsync(string? userId)
+        private async Task<int> TryConvertGuestSessionAsync(string userId)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(userId))
-                {
-                    return 0;
-                }
-
-                if (Request.Headers.TryGetValue(ANONYMOUS_ID_HEADER, out var anonymousIdStr) &&
+                if (Request.Headers.TryGetValue(AnonymousIdHeader, out var anonymousIdStr) &&
                     Guid.TryParse(anonymousIdStr.ToString(), out var anonymousUserId))
                 {
-                    var resumeCount = await _resumeManagementService.ConvertAnonymousToUserAsync(anonymousUserId, userId);
-                    
-                    if (resumeCount > 0)
-                    {
-                        _logger.LogInformation("Converted {ResumeCount} anonymous resumes to user {UserId} from anonymous user {AnonymousUserId}", resumeCount, userId, anonymousUserId);
-                    }
-                    return resumeCount;
+                    var count = await _resumeManagementService.ConvertAnonymousToUserAsync(anonymousUserId, userId);
+                    if (count > 0)
+                        _logger.LogInformation("Converted {Count} guest resumes to user {UserId}", count, userId);
+                    return count;
                 }
                 return 0;
             }
             catch (Exception ex)
             {
-                // Log the error but don't fail the authentication
-                _logger.LogError(ex, "Failed to convert anonymous user for user {UserId}. User can still log in.", userId);
+                _logger.LogError(ex, "Guest conversion failed for user {UserId}", userId);
                 return -1;
             }
+        }
+
+        private string ExtractProvider()
+        {
+            var appMetadataJson = User.FindFirstValue("app_metadata");
+            if (!string.IsNullOrEmpty(appMetadataJson))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(appMetadataJson);
+                    if (doc.RootElement.TryGetProperty("provider", out var p))
+                        return p.GetString() ?? "email";
+                }
+                catch { }
+            }
+            return "email";
+        }
+
+        private string? ExtractDisplayName()
+        {
+            var userMetadataJson = User.FindFirstValue("user_metadata");
+            if (!string.IsNullOrEmpty(userMetadataJson))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(userMetadataJson);
+                    if (doc.RootElement.TryGetProperty("full_name", out var n)) return n.GetString();
+                    if (doc.RootElement.TryGetProperty("name", out var n2)) return n2.GetString();
+                }
+                catch { }
+            }
+            return null;
         }
     }
 }

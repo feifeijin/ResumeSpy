@@ -12,5 +12,6 @@ namespace ResumeSpy.Core.Entities.General
         public bool IsExternalLogin { get; set; }
 
         public ICollection<Resume> Resumes { get; set; } = new HashSet<Resume>();
+        public ICollection<UserIdentity> Identities { get; set; } = new HashSet<UserIdentity>();
     }
 }
