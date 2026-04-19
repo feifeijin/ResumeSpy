@@ -123,4 +123,54 @@ public class ResumeDetailServiceTests
             t.OldImagePath == "/thumb/old.png")), Times.Once);
         _imageGenerationService.Verify(s => s.GenerateThumbnailAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
+
+    [Fact]
+    public async Task UpdateFlagsOnly_EnqueuesThumbnail_UsingExistingContent()
+    {
+        // Purpose: verify that switching default/name/language re-queues thumbnail generation
+        // so the dossier card image stays current even when content was not edited.
+        var service = CreateService();
+        var entity = new ResumeDetail { Id = "d1", ResumeId = "r1", Content = "# My Resume", ResumeImgPath = "/thumb/old.png" };
+        _resumeDetailRepository.Setup(r => r.GetById("d1")).ReturnsAsync(entity);
+
+        await service.UpdateFlagsOnly(new ResumeDetailViewModel
+        {
+            Id = "d1",
+            ResumeId = "r1",
+            Content = "# My Resume",
+            IsDefault = true,
+            Name = "English",
+            Language = "en"
+        });
+
+        _resumeDetailRepository.Verify(r => r.Update(entity), Times.Once);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+
+        _thumbnailQueue.Verify(q => q.Enqueue(It.Is<ThumbnailTask>(t =>
+            t.ResumeDetailId == "d1" &&
+            t.ResumeId == "r1" &&
+            t.Content == "# My Resume" &&
+            t.OldImagePath == "/thumb/old.png")), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateFlagsOnly_DoesNotEnqueueThumbnail_WhenContentIsEmpty()
+    {
+        // Purpose: no thumbnail task when the detail has no content to render.
+        var service = CreateService();
+        var entity = new ResumeDetail { Id = "d2", ResumeId = "r1", Content = "" };
+        _resumeDetailRepository.Setup(r => r.GetById("d2")).ReturnsAsync(entity);
+
+        await service.UpdateFlagsOnly(new ResumeDetailViewModel
+        {
+            Id = "d2",
+            ResumeId = "r1",
+            Content = "",
+            IsDefault = true,
+            Name = "English",
+            Language = "en"
+        });
+
+        _thumbnailQueue.Verify(q => q.Enqueue(It.IsAny<ThumbnailTask>()), Times.Never);
+    }
 }

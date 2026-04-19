@@ -121,7 +121,8 @@ namespace ResumeSpy.Core.Services
 
         /// <summary>
         /// Updates IsDefault, Name and Language flags only.
-        /// Does NOT regenerate or delete the thumbnail.
+        /// Enqueues thumbnail regeneration so the card image stays current
+        /// regardless of when the detail was originally created.
         /// </summary>
         public async Task UpdateFlagsOnly(ResumeDetailViewModel model)
         {
@@ -129,12 +130,17 @@ namespace ResumeSpy.Core.Services
             if (existingData == null)
                 throw new NotFoundException($"ResumeDetail with id {model.Id} not found.");
 
+            var oldImagePath = existingData.ResumeImgPath;
+
             existingData.IsDefault = model.IsDefault;
             existingData.Name = model.Name;
             existingData.Language = model.Language;
             existingData.UpdateDate = DateTime.UtcNow;
             await _resumeDetailRepository.Update(existingData);
             await _unitOfWork.SaveChangesAsync();
+
+            if (!string.IsNullOrWhiteSpace(existingData.Content))
+                _thumbnailQueue.Enqueue(new ThumbnailTask(existingData.Id, existingData.ResumeId, existingData.Content, oldImagePath));
         }
     }
 }
