@@ -38,6 +38,11 @@ namespace ResumeSpy.Core.Services
             entity.SortOrder = await _resumeDetailRepository.GetNextSortOrderAsync(model.ResumeId);
             var result = await _resumeDetailRepository.Create(entity);
             await _unitOfWork.SaveChangesAsync();
+
+            // Queue thumbnail generation in the background so the create response is fast
+            if (!string.IsNullOrWhiteSpace(result.Content))
+                _thumbnailQueue.Enqueue(new ThumbnailTask(result.Id, result.ResumeId, result.Content, null));
+
             return _resumeDetailViewModelMapper.MapModel(result);
         }
 

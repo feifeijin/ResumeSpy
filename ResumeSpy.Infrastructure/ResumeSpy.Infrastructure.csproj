@@ -31,6 +31,10 @@
     <ProjectReference Include="..\ResumeSpy.Core\ResumeSpy.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Fonts\NotoSansSC-Regular.ttf" />
+    <EmbeddedResource Include="Fonts\NotoSansJP-Regular.ttf" />
+  </ItemGroup>
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>

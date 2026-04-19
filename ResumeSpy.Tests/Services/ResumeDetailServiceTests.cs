@@ -28,6 +28,45 @@ public class ResumeDetailServiceTests
         _thumbnailQueue.Object);
 
     [Fact]
+    public async Task Create_EnqueuesThumbnail_WhenContentIsPresent()
+    {
+        // Purpose: verify that creating a resume detail with content queues thumbnail
+        // generation in the background rather than leaving ResumeImgPath null forever.
+        var service = CreateService();
+        var vm = new ResumeDetailViewModel { Id = "d1", ResumeId = "r1", Content = "# My Resume" };
+        var entity = new ResumeDetail { Id = "d1", ResumeId = "r1", Content = "# My Resume" };
+        _entityMapper.Setup(m => m.MapModel(vm)).Returns(entity);
+        _resumeDetailRepository.Setup(r => r.Create(entity)).ReturnsAsync(entity);
+        _resumeDetailRepository.Setup(r => r.GetNextSortOrderAsync("r1")).ReturnsAsync(1);
+        _viewModelMapper.Setup(m => m.MapModel(entity)).Returns(vm);
+
+        await service.Create(vm);
+
+        _thumbnailQueue.Verify(q => q.Enqueue(It.Is<ThumbnailTask>(t =>
+            t.ResumeDetailId == "d1" &&
+            t.ResumeId == "r1" &&
+            t.Content == "# My Resume" &&
+            t.OldImagePath == null)), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_DoesNotEnqueueThumbnail_WhenContentIsEmpty()
+    {
+        // Purpose: verify no thumbnail task is queued when content is blank.
+        var service = CreateService();
+        var vm = new ResumeDetailViewModel { Id = "d2", ResumeId = "r1", Content = "" };
+        var entity = new ResumeDetail { Id = "d2", ResumeId = "r1", Content = "" };
+        _entityMapper.Setup(m => m.MapModel(vm)).Returns(entity);
+        _resumeDetailRepository.Setup(r => r.Create(entity)).ReturnsAsync(entity);
+        _resumeDetailRepository.Setup(r => r.GetNextSortOrderAsync("r1")).ReturnsAsync(1);
+        _viewModelMapper.Setup(m => m.MapModel(entity)).Returns(vm);
+
+        await service.Create(vm);
+
+        _thumbnailQueue.Verify(q => q.Enqueue(It.IsAny<ThumbnailTask>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Delete_ThrowsNotFoundException_WhenDetailMissing()
     {
         // Purpose: verify deleting unknown detail throws domain not-found exception.

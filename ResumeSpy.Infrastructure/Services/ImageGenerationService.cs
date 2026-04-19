@@ -1,18 +1,13 @@
 using Markdig;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using ResumeSpy.Core.Interfaces.IServices;
-using SixLabors.Fonts;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ResumeSpy.Infrastructure.Services
 {
@@ -23,13 +18,31 @@ namespace ResumeSpy.Infrastructure.Services
         private readonly string _supabaseUrl;
         private readonly string _serviceRoleKey;
         private readonly string _storageBucket;
-        private static readonly object FontRegistrationLock = new();
-        private static string? _questPdfFontFamily;
+
+        // Primary font family name as registered with QuestPDF (matches the font's internal name)
+        private const string PrimaryFontFamily = "Noto Sans SC";
 
         static ImageGenerationService()
         {
             QuestPDF.Settings.License = LicenseType.Community;
             QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
+            RegisterEmbeddedFonts();
+        }
+
+        /// <summary>
+        /// Loads NotoSansSC and NotoSansJP from embedded resources and registers them with
+        /// QuestPDF. NotoSansSC is the primary font (covers Latin + Chinese characters and
+        /// Japanese kanji). NotoSansJP is registered as well so QuestPDF's automatic glyph
+        /// fallback can resolve hiragana and katakana that are absent in NotoSansSC.
+        /// </summary>
+        private static void RegisterEmbeddedFonts()
+        {
+            // RegisterFontFromEmbeddedResource searches all loaded assemblies by resource name.
+            // NotoSansSC: Latin + Simplified Chinese + Japanese kanji (shared Unicode block).
+            // NotoSansJP: hiragana + katakana + additional Japanese glyphs not in NotoSansSC.
+            // QuestPDF automatically falls back across all registered fonts for missing glyphs.
+            FontManager.RegisterFontFromEmbeddedResource("ResumeSpy.Infrastructure.Fonts.NotoSansSC-Regular.ttf");
+            FontManager.RegisterFontFromEmbeddedResource("ResumeSpy.Infrastructure.Fonts.NotoSansJP-Regular.ttf");
         }
 
         public ImageGenerationService(
@@ -54,13 +67,14 @@ namespace ResumeSpy.Infrastructure.Services
             var sanitizedText = plainText.Length > 600 ? plainText[..600] + "…" : plainText;
             if (string.IsNullOrWhiteSpace(sanitizedText)) sanitizedText = "Resume";
 
-            var fontFamily = ResolveQuestPdfFontFamily();
+            // NotoSansSC covers Latin + Chinese characters + Japanese kanji.
+            // QuestPDF automatically falls back to NotoSansJP (also registered) for
+            // hiragana and katakana glyphs that are not present in NotoSansSC.
             var defaultTextStyle = TextStyle.Default
+                .FontFamily(PrimaryFontFamily)
                 .FontSize(11)
                 .FontColor("#323232")
                 .LineHeight(1.5f);
-            if (!string.IsNullOrWhiteSpace(fontFamily))
-                defaultTextStyle = defaultTextStyle.FontFamily(fontFamily);
 
             var document = Document.Create(container =>
             {
@@ -147,48 +161,6 @@ namespace ResumeSpy.Infrastructure.Services
             }
 
             return null;
-        }
-
-        private string? ResolveQuestPdfFontFamily()
-        {
-            if (!string.IsNullOrWhiteSpace(_questPdfFontFamily))
-            {
-                return _questPdfFontFamily;
-            }
-
-            lock (FontRegistrationLock)
-            {
-                if (!string.IsNullOrWhiteSpace(_questPdfFontFamily))
-                {
-                    return _questPdfFontFamily;
-                }
-
-                var preferredFonts = new[]
-                {
-                    "PingFang SC",
-                    "Hiragino Sans",
-                    "Microsoft YaHei",
-                    "Meiryo",
-                    "Noto Sans CJK SC",
-                    "Noto Sans CJK JP",
-                    "Noto Sans",
-                    "Arial Unicode MS",
-                    "Arial",
-                    "Helvetica"
-                };
-
-                foreach (var fontName in preferredFonts)
-                {
-                    if (SystemFonts.TryGet(fontName, out _))
-                    {
-                        _questPdfFontFamily = fontName;
-                        return _questPdfFontFamily;
-                    }
-                }
-
-                _questPdfFontFamily = null;
-                return _questPdfFontFamily;
-            }
         }
 
         public Task DeleteThumbnailAsync(string? imagePath)
