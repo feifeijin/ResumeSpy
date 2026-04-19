@@ -21,6 +21,14 @@ namespace ResumeSpy.UI.Extensions
     {
         public static IServiceCollection RegisterService(this IServiceCollection services)
         {
+            #region Background Services
+            // ThumbnailBackgroundService is a singleton that acts as both the hosted service
+            // and the IThumbnailQueue implementation consumed by scoped services.
+            services.AddSingleton<ThumbnailBackgroundService>();
+            services.AddSingleton<IThumbnailQueue>(sp => sp.GetRequiredService<ThumbnailBackgroundService>());
+            services.AddHostedService(sp => sp.GetRequiredService<ThumbnailBackgroundService>());
+            #endregion
+
             #region Services
             services.AddScoped<IIdentityLinkingService, IdentityLinkingService>();
             services.AddScoped<IResumeService, ResumeService>();

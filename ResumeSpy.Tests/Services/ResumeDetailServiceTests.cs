@@ -17,13 +17,15 @@ public class ResumeDetailServiceTests
     private readonly Mock<IResumeDetailRepository> _resumeDetailRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IImageGenerationService> _imageGenerationService = new();
+    private readonly Mock<IThumbnailQueue> _thumbnailQueue = new();
 
     private ResumeDetailService CreateService() => new(
         _viewModelMapper.Object,
         _entityMapper.Object,
         _resumeDetailRepository.Object,
         _unitOfWork.Object,
-        _imageGenerationService.Object);
+        _imageGenerationService.Object,
+        _thumbnailQueue.Object);
 
     [Fact]
     public async Task Delete_ThrowsNotFoundException_WhenDetailMissing()
@@ -51,13 +53,13 @@ public class ResumeDetailServiceTests
     }
 
     [Fact]
-    public async Task Update_RegeneratesThumbnail_WhenContentChanges()
+    public async Task Update_SavesContentImmediately_AndEnqueuesThumbnailInBackground()
     {
-        // Purpose: verify content update regenerates thumbnail and updates persisted fields.
+        // Purpose: verify content update saves to DB right away and queues thumbnail
+        // generation as a background task rather than blocking the save response.
         var service = CreateService();
         var entity = new ResumeDetail { Id = "d1", ResumeId = "r1", Content = "old", ResumeImgPath = "/thumb/old.png" };
         _resumeDetailRepository.Setup(r => r.GetById("d1")).ReturnsAsync(entity);
-        _imageGenerationService.Setup(s => s.GenerateThumbnailAsync("new", "r1_d1")).ReturnsAsync("/thumb/new.png");
 
         await service.Update(new ResumeDetailViewModel
         {
@@ -69,9 +71,17 @@ public class ResumeDetailServiceTests
             IsDefault = true
         });
 
-        Assert.Equal("/thumb/new.png", entity.ResumeImgPath);
+        // Content should be persisted synchronously
         Assert.Equal("new", entity.Content);
         _resumeDetailRepository.Verify(r => r.Update(entity), Times.Once);
         _unitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+
+        // Thumbnail should be queued, not generated inline
+        _thumbnailQueue.Verify(q => q.Enqueue(It.Is<ThumbnailTask>(t =>
+            t.ResumeDetailId == "d1" &&
+            t.ResumeId == "r1" &&
+            t.Content == "new" &&
+            t.OldImagePath == "/thumb/old.png")), Times.Once);
+        _imageGenerationService.Verify(s => s.GenerateThumbnailAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 }

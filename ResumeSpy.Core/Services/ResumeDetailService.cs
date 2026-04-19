@@ -14,19 +14,22 @@ namespace ResumeSpy.Core.Services
         private readonly IResumeDetailRepository _resumeDetailRepository;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IImageGenerationService _imageGenerationService;
-        
+        private readonly IThumbnailQueue _thumbnailQueue;
+
         public ResumeDetailService(
             IBaseMapper<ResumeDetail, ResumeDetailViewModel> resumeDetailViewModelMapper,
             IBaseMapper<ResumeDetailViewModel, ResumeDetail> resumeDetailMapper,
             IResumeDetailRepository resumeDetailRepository,
             IUnitOfWork unitOfWork,
-            IImageGenerationService imageGenerationService)
+            IImageGenerationService imageGenerationService,
+            IThumbnailQueue thumbnailQueue)
         {
             _resumeDetailViewModelMapper = resumeDetailViewModelMapper;
             _resumeDetailMapper = resumeDetailMapper;
             _resumeDetailRepository = resumeDetailRepository;
             _unitOfWork = unitOfWork;
             _imageGenerationService = imageGenerationService;
+            _thumbnailQueue = thumbnailQueue;
         }
         public async Task<ResumeDetailViewModel> Create(ResumeDetailViewModel model)
         {
@@ -89,18 +92,9 @@ namespace ResumeSpy.Core.Services
                 throw new NotFoundException($"ResumeDetail with id {model.Id} not found.");
             }
 
-            // Always regenerate thumbnail on every save, delete the old one first
-            if (!string.IsNullOrWhiteSpace(model.Content))
-            {
-                await _imageGenerationService.DeleteThumbnailAsync(existingData.ResumeImgPath);
-                existingData.ResumeImgPath = await _imageGenerationService.GenerateThumbnailAsync(model.Content, $"{model.ResumeId}_{model.Id}");
-            }
-            else
-            {
-                await _imageGenerationService.DeleteThumbnailAsync(existingData.ResumeImgPath);
-                existingData.ResumeImgPath = null;
-            }
+            var oldImagePath = existingData.ResumeImgPath;
 
+            // Persist content immediately so the user gets a fast response
             existingData.Content = model.Content;
             existingData.Name = model.Name;
             existingData.UpdateDate = DateTime.UtcNow;
@@ -108,6 +102,10 @@ namespace ResumeSpy.Core.Services
             existingData.Language = model.Language;
             await _resumeDetailRepository.Update(existingData);
             await _unitOfWork.SaveChangesAsync();
+
+            // Thumbnail generation (delete old + render + upload) runs in the background.
+            // The old thumbnail stays visible until the new one is ready.
+            _thumbnailQueue.Enqueue(new ThumbnailTask(model.Id, model.ResumeId, model.Content ?? string.Empty, oldImagePath));
         }
 
         public async Task ReorderDetails(string resumeId, IEnumerable<string> orderedIds)
