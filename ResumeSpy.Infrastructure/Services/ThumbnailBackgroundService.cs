@@ -4,7 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ResumeSpy.Core.Interfaces.IRepositories;
 using ResumeSpy.Core.Interfaces.IServices;
-using ResumeSpy.Core.Interfaces.Repositories;
 
 namespace ResumeSpy.Infrastructure.Services
 {
@@ -71,23 +70,27 @@ namespace ResumeSpy.Infrastructure.Services
         {
             using var scope = _scopeFactory.CreateScope();
             var imageService = scope.ServiceProvider.GetRequiredService<IImageGenerationService>();
-            var repo        = scope.ServiceProvider.GetRequiredService<IResumeDetailRepository>();
-            var unitOfWork  = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            var detailRepo   = scope.ServiceProvider.GetRequiredService<IResumeDetailRepository>();
+            var resumeRepo   = scope.ServiceProvider.GetRequiredService<IResumeRepository>();
+            var unitOfWork   = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
             // Delete the old thumbnail first (ignore errors — it may already be gone)
             if (!string.IsNullOrWhiteSpace(task.OldImagePath))
                 await imageService.DeleteThumbnailAsync(task.OldImagePath);
 
-            // If content is empty, there is nothing to generate — just clean up
+            // If content is empty, clear the thumbnail and bail out
             if (string.IsNullOrWhiteSpace(task.Content))
             {
-                var emptyEntity = await repo.GetById(task.ResumeDetailId);
+                var emptyEntity = await detailRepo.GetById(task.ResumeDetailId);
                 if (emptyEntity is not null)
                 {
                     emptyEntity.ResumeImgPath = null;
-                    await repo.Update(emptyEntity);
-                    await unitOfWork.SaveChangesAsync();
+                    await detailRepo.Update(emptyEntity);
+
+                    if (emptyEntity.IsDefault)
+                        await SyncResumeImgPathAsync(resumeRepo, task.ResumeId, null);
                 }
+                await unitOfWork.SaveChangesAsync();
                 return;
             }
 
@@ -96,8 +99,8 @@ namespace ResumeSpy.Infrastructure.Services
                 task.Content,
                 $"{task.ResumeId}_{task.ResumeDetailId}");
 
-            // Persist the new image path
-            var entity = await repo.GetById(task.ResumeDetailId);
+            // Persist the new path on the detail
+            var entity = await detailRepo.GetById(task.ResumeDetailId);
             if (entity is null)
             {
                 _logger.LogWarning("ResumeDetail {Id} not found when persisting new thumbnail.", task.ResumeDetailId);
@@ -105,10 +108,24 @@ namespace ResumeSpy.Infrastructure.Services
             }
 
             entity.ResumeImgPath = newPath;
-            await repo.Update(entity);
+            await detailRepo.Update(entity);
+
+            // Keep Resume.ResumeImgPath in sync so the dossier card always shows
+            // the default detail's latest thumbnail.
+            if (entity.IsDefault)
+                await SyncResumeImgPathAsync(resumeRepo, task.ResumeId, newPath);
+
             await unitOfWork.SaveChangesAsync();
 
-            _logger.LogDebug("Thumbnail updated for detail {Id}.", task.ResumeDetailId);
+            _logger.LogDebug("Thumbnail updated for detail {Id} (isDefault={IsDefault}).", task.ResumeDetailId, entity.IsDefault);
+        }
+
+        private async Task SyncResumeImgPathAsync(IResumeRepository resumeRepo, string resumeId, string? imgPath)
+        {
+            var resume = await resumeRepo.GetById(resumeId);
+            if (resume is null) return;
+            resume.ResumeImgPath = imgPath;
+            await resumeRepo.Update(resume);
         }
     }
 }
