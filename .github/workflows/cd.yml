@@ -74,6 +74,20 @@ jobs:
           echo "❌ Health check failed after 30 attempts (10+ minutes)"
           exit 1
 
+      - name: Notify Telegram (success)
+        if: success()
+        run: |
+          curl -fsS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"${{ secrets.TELEGRAM_CHAT_ID }}\",\"text\":\"✅ Backend DEV deployed\nCommit: ${{ github.sha }}\nBy: ${{ github.actor }}\"}"
+
+      - name: Notify Telegram (failure)
+        if: failure()
+        run: |
+          curl -fsS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"${{ secrets.TELEGRAM_CHAT_ID }}\",\"text\":\"❌ Backend DEV deploy FAILED\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+
   deploy-prod:
     name: Deploy to PROD
     needs: build-and-test
@@ -113,4 +127,17 @@ jobs:
           done
           echo "❌ Health check failed after 30 attempts (10+ minutes)"
           exit 1
-          curl -fsS -X POST "${RENDER_DEPLOY_HOOK_URL}"
+
+      - name: Notify Telegram (success)
+        if: success()
+        run: |
+          curl -fsS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"${{ secrets.TELEGRAM_CHAT_ID }}\",\"text\":\"✅ Backend PROD deployed\nCommit: ${{ github.sha }}\nBy: ${{ github.actor }}\"}"
+
+      - name: Notify Telegram (failure)
+        if: failure()
+        run: |
+          curl -fsS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"${{ secrets.TELEGRAM_CHAT_ID }}\",\"text\":\"❌ Backend PROD deploy FAILED\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"

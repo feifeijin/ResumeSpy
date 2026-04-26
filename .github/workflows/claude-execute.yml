@@ -1,0 +1,117 @@
+name: Claude Execute Issue
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'GitHub issue number'
+        required: true
+        type: string
+      repo_target:
+        description: 'Target repo'
+        required: true
+        default: 'backend'
+        type: choice
+        options: [backend]
+
+# Prevent two Claude jobs running against the same repo simultaneously
+concurrency:
+  group: claude-execute-backend
+  cancel-in-progress: false
+
+jobs:
+  execute:
+    name: Claude implements issue #${{ inputs.issue_number }}
+    runs-on: self-hosted
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure git
+        run: |
+          git config user.name "ResumeSpy Bot"
+          git config user.email "bot@resumespy.dev"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+
+      - name: Get issue details
+        id: issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          JSON=$(gh issue view "${{ inputs.issue_number }}" --json number,title,body)
+          TITLE=$(echo "$JSON" | jq -r '.title')
+          BODY=$(echo "$JSON" | jq -r '.body // "(no description)"')
+          SLUG=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | cut -c1-40 | sed 's/-$//')
+          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "body<<EOF_BODY" >> "$GITHUB_OUTPUT"
+          echo "$BODY" >> "$GITHUB_OUTPUT"
+          echo "EOF_BODY" >> "$GITHUB_OUTPUT"
+          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
+
+      - name: Run Claude on issue
+        id: claude
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          N="${{ inputs.issue_number }}"
+          SLUG="${{ steps.issue.outputs.slug }}"
+          TITLE="${{ steps.issue.outputs.title }}"
+          BODY="${{ steps.issue.outputs.body }}"
+          BRANCH="feature/issue-${N}-${SLUG}"
+
+          PROMPT="You are working on the ResumeSpy backend (.NET 9).
+
+          GitHub Issue #${N}: ${TITLE}
+
+          ${BODY}
+
+          Tasks (follow in order):
+          1. Read relevant source files to fully understand the context before writing any code.
+          2. Create a feature branch: git checkout -b ${BRANCH}
+          3. Implement the change following CLAUDE.md conventions:
+             - Clean Architecture: Core (entities, interfaces), Infrastructure (EF, external services), UI (controllers)
+             - Core has no outbound dependencies
+             - Add xUnit tests for new business logic in ResumeSpy.Tests
+          4. Run tests and fix any failures: dotnet test ResumeSpy.sln --configuration Release
+          5. Commit: git add -A && git commit -m 'fix: ${TITLE} (#${N})'
+          6. Push: git push origin ${BRANCH}
+          7. Open PR: gh pr create --title '${TITLE}' --body 'Closes #${N}
+
+          ---
+          *Automated by ResumeSpy Bot + Claude*' --head ${BRANCH}
+          8. Print ONLY the PR URL as the very last line of your output (no other text after it)."
+
+          OUTPUT=$(claude --dangerously-skip-permissions -p "$PROMPT" 2>&1)
+          echo "$OUTPUT"
+          PR_URL=$(echo "$OUTPUT" | grep -oE 'https://github\.com/[^/]+/[^/]+/pull/[0-9]+' | tail -1)
+          echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Notify Telegram (success)
+        if: success()
+        run: |
+          MSG="✅ Claude finished issue #${{ inputs.issue_number }}
+          ${TITLE}: ${{ steps.issue.outputs.title }}
+          PR: ${{ steps.claude.outputs.pr_url }}"
+          curl -fsS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"${{ secrets.TELEGRAM_CHAT_ID }}\",\"text\":\"${MSG}\"}"
+
+      - name: Notify Telegram (failure)
+        if: failure()
+        run: |
+          curl -fsS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"${{ secrets.TELEGRAM_CHAT_ID }}\",\"text\":\"❌ Claude failed on backend issue #${{ inputs.issue_number }}\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
