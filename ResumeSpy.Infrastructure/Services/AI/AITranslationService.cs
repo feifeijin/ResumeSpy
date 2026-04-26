@@ -1,29 +1,33 @@
 using Microsoft.Extensions.Logging;
 using ResumeSpy.Core.AI;
 using ResumeSpy.Core.Interfaces.AI;
+using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.Infrastructure.Prompts;
 
 namespace ResumeSpy.Infrastructure.Services.AI
 {
-    /// <summary>
-    /// AI-powered translation service using generative text models
-    /// </summary>
     public class AITranslationService : IAITranslationService
     {
         private readonly IGenerativeTextService _textService;
         private readonly ILogger<AITranslationService> _logger;
+        private readonly IPromptProviderService _promptProvider;
 
-        public AITranslationService(IGenerativeTextService textService, ILogger<AITranslationService> logger)
+        public AITranslationService(
+            IGenerativeTextService textService,
+            ILogger<AITranslationService> logger,
+            IPromptProviderService promptProvider)
         {
             _textService = textService;
             _logger = logger;
+            _promptProvider = promptProvider;
         }
 
         public async Task<string> TranslateAsync(string text, string targetLanguage, string? sourceLanguage = null, string? context = null)
         {
             var languageNames = GetLanguageName(targetLanguage);
-            
-            var systemMessage = TranslationPrompts.TranslationSystemMessage;
+
+            var systemMessage = await _promptProvider.GetSystemMessageAsync(
+                PromptKeys.Translation, TranslationPrompts.TranslationSystemMessage);
             var sourceName = string.IsNullOrWhiteSpace(sourceLanguage) ? null : GetLanguageName(sourceLanguage);
             var prompt = TranslationPrompts.BuildTranslationPrompt(text, languageNames, sourceName, context);
 
@@ -53,7 +57,8 @@ namespace ResumeSpy.Infrastructure.Services.AI
 
         public async Task<string> DetectLanguageAsync(string text)
         {
-            var systemMessage = TranslationPrompts.LanguageDetectionSystemMessage;
+            var systemMessage = await _promptProvider.GetSystemMessageAsync(
+                PromptKeys.LanguageDetection, TranslationPrompts.LanguageDetectionSystemMessage);
             var prompt = TranslationPrompts.BuildLanguageDetectionPrompt(text);
 
             var request = new AIRequest

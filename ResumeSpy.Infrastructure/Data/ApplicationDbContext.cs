@@ -18,6 +18,7 @@ namespace ResumeSpy.Infrastructure.Data
         public DbSet<GuestSession> GuestSessions { get; set; }
         public DbSet<ResumeVersion> ResumeVersions { get; set; }
         public DbSet<UserIdentity> UserIdentities { get; set; }
+        public DbSet<PromptTemplate> PromptTemplates { get; set; }
 
         #endregion
 

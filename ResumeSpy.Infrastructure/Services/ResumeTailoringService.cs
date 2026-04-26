@@ -10,13 +10,16 @@ namespace ResumeSpy.Infrastructure.Services
     {
         private readonly AIOrchestratorService _aiOrchestrator;
         private readonly ILogger<ResumeTailoringService> _logger;
+        private readonly IPromptProviderService _promptProvider;
 
         public ResumeTailoringService(
             AIOrchestratorService aiOrchestrator,
-            ILogger<ResumeTailoringService> logger)
+            ILogger<ResumeTailoringService> logger,
+            IPromptProviderService promptProvider)
         {
             _aiOrchestrator = aiOrchestrator;
             _logger = logger;
+            _promptProvider = promptProvider;
         }
 
         public async Task<string> TailorResumeAsync(
@@ -24,10 +27,13 @@ namespace ResumeSpy.Infrastructure.Services
             string jobDescription,
             string? language = null)
         {
+            var systemMessage = await _promptProvider.GetSystemMessageAsync(
+                PromptKeys.Tailoring, TailoringPrompts.SystemMessage);
+
             var request = new AIRequest
             {
                 Prompt = TailoringPrompts.BuildPrompt(resumeContent, jobDescription),
-                SystemMessage = TailoringPrompts.SystemMessage,
+                SystemMessage = systemMessage,
                 Temperature = 0.4,
                 MaxTokens = 4096
             };

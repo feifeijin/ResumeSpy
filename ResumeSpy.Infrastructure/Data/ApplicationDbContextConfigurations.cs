@@ -1,11 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ResumeSpy.Core.Entities.General;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ResumeSpy.Infrastructure.Data
 {
@@ -16,7 +11,16 @@ namespace ResumeSpy.Infrastructure.Data
             modelBuilder.Entity<ApplicationUser>().ToTable("Users");
             modelBuilder.Entity<IdentityRole>().ToTable("Roles");
 
-            // Add any additional entity configurations here
+            modelBuilder.Entity<PromptTemplate>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).ValueGeneratedOnAdd();
+                entity.Property(e => e.Key).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.Category).HasMaxLength(50).IsRequired();
+                entity.Property(e => e.SystemMessage).IsRequired();
+                entity.Property(e => e.Description).HasMaxLength(500);
+                entity.HasIndex(e => e.Key).IsUnique();
+            });
         }
 
         public static void SeedData(ModelBuilder modelBuilder)

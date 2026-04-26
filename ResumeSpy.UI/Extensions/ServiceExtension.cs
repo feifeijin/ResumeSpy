@@ -41,6 +41,7 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IResumeImportService, ResumeImportService>();
             services.AddScoped<IResumeVersionService, ResumeVersionService>();
             services.AddScoped<IResumeChatService, ResumeChatService>();
+            services.AddScoped<IPromptProviderService, PromptProviderService>();
 
             // Translation Services
             services.AddScoped<ITranslationService, TranslationService>();
@@ -63,6 +64,7 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IAnonymousUserRepository, AnonymousUserRepository>();
             services.AddScoped<IResumeVersionRepository, ResumeVersionRepository>();
             services.AddScoped<IUserIdentityRepository, UserIdentityRepository>();
+            services.AddScoped<IPromptRepository, PromptRepository>();
             services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             #endregion

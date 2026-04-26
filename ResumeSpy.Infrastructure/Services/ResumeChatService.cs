@@ -12,11 +12,16 @@ namespace ResumeSpy.Infrastructure.Services
     {
         private readonly AIOrchestratorService _aiOrchestrator;
         private readonly ILogger<ResumeChatService> _logger;
+        private readonly IPromptProviderService _promptProvider;
 
-        public ResumeChatService(AIOrchestratorService aiOrchestrator, ILogger<ResumeChatService> logger)
+        public ResumeChatService(
+            AIOrchestratorService aiOrchestrator,
+            ILogger<ResumeChatService> logger,
+            IPromptProviderService promptProvider)
         {
             _aiOrchestrator = aiOrchestrator;
             _logger = logger;
+            _promptProvider = promptProvider;
         }
 
         public async Task<ChatResponse> ChatAsync(
@@ -24,13 +29,14 @@ namespace ResumeSpy.Infrastructure.Services
             string currentResumeContent,
             string? language = null)
         {
-            // Build the full prompt from history + current resume
             var prompt = BuildPrompt(history, currentResumeContent, language);
+            var systemMessage = await _promptProvider.GetSystemMessageAsync(
+                PromptKeys.Chat, ChatPrompts.SystemPrompt);
 
             var request = new AIRequest
             {
                 Prompt = prompt,
-                SystemMessage = ChatPrompts.SystemPrompt,
+                SystemMessage = systemMessage,
                 Temperature = 0.7,
                 MaxTokens = 4096
             };

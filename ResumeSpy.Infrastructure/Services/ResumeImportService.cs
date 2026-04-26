@@ -14,14 +14,19 @@ namespace ResumeSpy.Infrastructure.Services
     {
         private readonly AIOrchestratorService _aiOrchestrator;
         private readonly ILogger<ResumeImportService> _logger;
+        private readonly IPromptProviderService _promptProvider;
 
         private static readonly HashSet<string> SupportedExtensions =
             new(StringComparer.OrdinalIgnoreCase) { ".pdf", ".docx", ".doc", ".txt" };
 
-        public ResumeImportService(AIOrchestratorService aiOrchestrator, ILogger<ResumeImportService> logger)
+        public ResumeImportService(
+            AIOrchestratorService aiOrchestrator,
+            ILogger<ResumeImportService> logger,
+            IPromptProviderService promptProvider)
         {
             _aiOrchestrator = aiOrchestrator;
             _logger = logger;
+            _promptProvider = promptProvider;
         }
 
         public async Task<ResumeImportResult> ImportAsync(Stream stream, string extension)
@@ -78,10 +83,13 @@ namespace ResumeSpy.Infrastructure.Services
 
         private async Task<ResumeImportResult> ConvertToMarkdownAsync(string rawText)
         {
+            var systemMessage = await _promptProvider.GetSystemMessageAsync(
+                PromptKeys.Import, ImportPrompts.SystemMessage);
+
             var response = await _aiOrchestrator.ExecuteTextGenerationAsync(new AIRequest
             {
                 Prompt = ImportPrompts.BuildPrompt(rawText),
-                SystemMessage = ImportPrompts.SystemMessage,
+                SystemMessage = systemMessage,
                 Temperature = 0.2,
                 MaxTokens = 4096,
             }, useCache: false);

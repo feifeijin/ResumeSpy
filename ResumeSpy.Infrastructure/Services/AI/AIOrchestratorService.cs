@@ -109,20 +109,15 @@ namespace ResumeSpy.Infrastructure.Services.AI
             };
         }
 
-        /// <summary>
-        /// Get the AI-powered translation service
-        /// </summary>
         public IAITranslationService GetTranslationService()
         {
-            // Get the default text provider
             var providerName = _configuration["AI:DefaultTextProvider"] ?? "OpenAI";
             var textService = _serviceProvider.GetRequiredKeyedService<IGenerativeTextService>(providerName);
-
-            // Create translation service with the selected provider
             var loggerFactory = _serviceProvider.GetRequiredService<ILoggerFactory>();
             var logger = loggerFactory.CreateLogger<AITranslationService>();
-            
-            return new AITranslationService(textService, logger);
+            var promptProvider = _serviceProvider.GetRequiredService<ResumeSpy.Core.Interfaces.IServices.IPromptProviderService>();
+
+            return new AITranslationService(textService, logger, promptProvider);
         }
 
         /// <summary>
