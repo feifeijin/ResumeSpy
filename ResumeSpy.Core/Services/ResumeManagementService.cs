@@ -14,7 +14,6 @@ namespace ResumeSpy.Core.Services
         private readonly IResumeDetailService _resumeDetailService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ITranslationService _translationService;
-        private readonly IImageGenerationService _imageGenerationService;
         private readonly IAnonymousUserService _anonymousUserService;
 
         public ResumeManagementService(
@@ -22,14 +21,12 @@ namespace ResumeSpy.Core.Services
             IResumeDetailService resumeDetailService,
             IUnitOfWork unitOfWork,
             ITranslationService translationService,
-            IImageGenerationService imageGenerationService,
             IAnonymousUserService anonymousUserService)
         {
             _resumeService = resumeService;
             _resumeDetailService = resumeDetailService;
             _unitOfWork = unitOfWork;
             _translationService = translationService;
-            _imageGenerationService = imageGenerationService;
             _anonymousUserService = anonymousUserService;
         }
 
@@ -81,14 +78,9 @@ namespace ResumeSpy.Core.Services
             var existingDetails = (await _resumeDetailService.GetResumeDetailsByResumeId(model.ResumeId)).ToList();
             model.Id = (existingDetails.Count + 1).ToString();
 
-            // Generate thumbnail
-            if (!string.IsNullOrWhiteSpace(model.Content))
-            {
-                model.ResumeImgPath = await _imageGenerationService.GenerateThumbnailAsync(model.Content, $"{model.ResumeId}_{model.Id}");
-            }
-
+            // Thumbnail is generated asynchronously by ThumbnailBackgroundService
+            // via the queue enqueued inside ResumeDetailService.Create — no blocking call here.
             var result = await _resumeDetailService.Create(model);
-            await _unitOfWork.SaveChangesAsync(); // Save immediately for single operation
             return result;
         }
 
@@ -111,19 +103,15 @@ namespace ResumeSpy.Core.Services
                     }
                 }
 
-                // Generate thumbnail before creating entities
-                if (!string.IsNullOrWhiteSpace(model.Content))
-                {
-                    model.ResumeImgPath = await _imageGenerationService.GenerateThumbnailAsync(model.Content, $"{newResumeId}_{newResumeDetailId}");
-                }
-
-                // Create new Resume first with anonymous/user context
+                // Create new Resume first with anonymous/user context.
+                // ResumeImgPath starts with the default placeholder; ThumbnailBackgroundService
+                // will update it once the thumbnail is ready.
                 var newResume = new ResumeViewModel
                 {
                     Id = newResumeId,
                     Title = model.Name ?? "New Resume",
                     ResumeDetailCount = 1,
-                    ResumeImgPath = model.ResumeImgPath ?? "/assets/default_resume.png",
+                    ResumeImgPath = "/assets/default_resume.png",
                     UserId = userId,
                     AnonymousUserId = isAnonymous ? anonymousUserId : null,
                     IsGuest = isAnonymous,
@@ -132,7 +120,8 @@ namespace ResumeSpy.Core.Services
 
                 var createdResume = await _resumeService.Create(newResume);
 
-                // Now create ResumeDetail with the new Resume ID
+                // Now create ResumeDetail with the new Resume ID.
+                // ResumeDetailService.Create enqueues thumbnail generation in the background.
                 model.ResumeId = createdResume.Id;
                 model.Id = newResumeDetailId;
                 var result = await _resumeDetailService.Create(model);
@@ -174,7 +163,7 @@ namespace ResumeSpy.Core.Services
                 // Get the original resume
                 var originalResume = await _resumeService.GetResume(resumeId);
 
-                // Create cloned resume
+                // Create cloned resume — reuse the source image until background thumbnails are ready
                 var clonedResume = new ResumeViewModel
                 {
                     Id = Guid.NewGuid().ToString(),
@@ -193,17 +182,12 @@ namespace ResumeSpy.Core.Services
                 // Get all ResumeDetails from the original resume
                 var originalResumeDetails = await _resumeDetailService.GetResumeDetailsByResumeId(resumeId);
 
-                // Clone each ResumeDetail and associate with the new resume
+                // Clone each ResumeDetail and associate with the new resume.
+                // ResumeDetailService.Create enqueues thumbnail generation per detail in the
+                // background so the clone response is not blocked by rendering N thumbnails.
                 foreach (var originalDetail in originalResumeDetails)
                 {
                     var newDetailId = Guid.NewGuid().ToString();
-                    var imagePath = originalDetail.ResumeImgPath;
-
-                    // If there's content, generate a new thumbnail for the cloned detail
-                    if (!string.IsNullOrWhiteSpace(originalDetail.Content))
-                    {
-                        imagePath = await _imageGenerationService.GenerateThumbnailAsync(originalDetail.Content, $"{createdResume.Id}_{newDetailId}");
-                    }
 
                     var clonedDetail = new ResumeDetailViewModel
                     {
@@ -212,7 +196,7 @@ namespace ResumeSpy.Core.Services
                         Name = originalDetail.Name,
                         Language = originalDetail.Language,
                         Content = originalDetail.Content,
-                        ResumeImgPath = imagePath,
+                        ResumeImgPath = originalDetail.ResumeImgPath, // reuse until new one is rendered
                         IsDefault = originalDetail.IsDefault
                     };
 
@@ -251,17 +235,10 @@ namespace ResumeSpy.Core.Services
                     await _resumeDetailService.UpdateFlagsOnly(currentDefaultDetail);
                 }
 
-                // Set new default and regenerate its thumbnail
+                // Set new default. ResumeDetailService.Update enqueues thumbnail regeneration;
+                // ThumbnailBackgroundService will sync Resume.ResumeImgPath once done.
                 newDefaultResumeDetail.IsDefault = true;
                 await _resumeDetailService.Update(newDefaultResumeDetail);
-
-                // Re-fetch to get the newly generated thumbnail path
-                var updatedDetail = await _resumeDetailService.GetResumeDetail(resumeDetailId);
-
-                // Sync the parent Resume's image path to the new default's fresh thumbnail
-                var resume = await _resumeService.GetResume(newDefaultResumeDetail.ResumeId);
-                resume.ResumeImgPath = updatedDetail.ResumeImgPath ?? "/assets/default_resume.png";
-                await _resumeService.Update(resume);
 
                 await _unitOfWork.CommitTransactionAsync();
             }
@@ -277,25 +254,11 @@ namespace ResumeSpy.Core.Services
             await _unitOfWork.BeginTransactionAsync();
             try
             {
-                // 1. Update the detail — always regenerates thumbnail
+                // Update the detail. ResumeDetailService.Update persists content immediately
+                // and enqueues thumbnail regeneration in the background.
+                // ThumbnailBackgroundService handles syncing Resume.ResumeImgPath once done.
                 await _resumeDetailService.Update(model);
 
-                // 2. Re-fetch to get the newly generated thumbnail path
-                var updatedResumeDetail = await _resumeDetailService.GetResumeDetail(model.Id);
-
-                // 3. Always sync the parent Resume's image path (not just when IsDefault)
-                //    so MySpy thumbnails stay current regardless of which tab was saved.
-                if (model.IsDefault)
-                {
-                    var resume = await _resumeService.GetResume(model.ResumeId);
-                    if (resume != null)
-                    {
-                        resume.ResumeImgPath = updatedResumeDetail.ResumeImgPath ?? "/assets/default_resume.png";
-                        await _resumeService.Update(resume);
-                    }
-                }
-
-                // 3. Commit the transaction.
                 await _unitOfWork.CommitTransactionAsync();
             }
             catch
@@ -343,7 +306,7 @@ namespace ResumeSpy.Core.Services
                 }
 
                 // Authorization check: user owns it or anonymous user matches
-                bool isAuthorized = 
+                bool isAuthorized =
                     (!string.IsNullOrEmpty(userId) && resume.UserId == userId) ||
                     (anonymousUserId.HasValue && resume.AnonymousUserId == anonymousUserId);
 
