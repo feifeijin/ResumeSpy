@@ -64,16 +64,27 @@ namespace ResumeSpy.Infrastructure.Services.AI
                 var content = new StringContent(json, Encoding.UTF8, System.Net.Mime.MediaTypeNames.Application.Json);
 
                 var response = await _httpClient.PostAsync(_endpoint, content);
-                
-                // Handle rate limiting and model loading
+
+                // On rate-limit or model-loading errors, return failure immediately so the
+                // AIOrchestratorService can fall back to the next provider in the chain.
+                // Blocking the caller with Task.Delay (up to 60 s) is unacceptable for
+                // free-tier services that are frequently throttled.
                 if (response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable ||
                     response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
-                    var retryAfter = response.Headers.RetryAfter?.Delta?.TotalSeconds ?? 20;
-                    _logger.LogWarning("HuggingFace rate limited or model loading, waiting {Seconds} seconds", retryAfter);
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(retryAfter, 60))); // Cap at 60 seconds
-                    
-                    response = await _httpClient.PostAsync(_endpoint, content);
+                    var retryAfter = response.Headers.RetryAfter?.Delta?.TotalSeconds ?? 0;
+                    stopwatch.Stop();
+                    _logger.LogWarning(
+                        "HuggingFace rate-limited (HTTP {Status}). Returning failure so the provider chain can fall back. Suggested retry-after: {Seconds}s",
+                        (int)response.StatusCode, retryAfter);
+                    return new AIResponse
+                    {
+                        IsSuccess = false,
+                        ErrorMessage = $"HuggingFace rate-limited (HTTP {(int)response.StatusCode}). Try again later.",
+                        Latency = stopwatch.Elapsed,
+                        ProviderName = "HuggingFace",
+                        ModelUsed = modelToUse
+                    };
                 }
 
                 response.EnsureSuccessStatusCode();

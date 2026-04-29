@@ -48,9 +48,23 @@ namespace ResumeSpy.UI.Extensions
             #endregion
 
             #region AI Services
-            // Register AI providers with keyed services
+            // Register AI providers with keyed services.
+            // HuggingFace uses a named HttpClient so we can configure a request timeout
+            // independently of the default client. A 30-second ceiling prevents free-tier
+            // latency spikes from hanging the request indefinitely.
+            services.AddHttpClient("HuggingFace", client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(30);
+            });
             services.AddKeyedSingleton<IGenerativeTextService, OpenAITextService>("OpenAI");
-            services.AddKeyedSingleton<IGenerativeTextService, HuggingFaceTextService>("HuggingFace");
+            services.AddKeyedSingleton<IGenerativeTextService>("HuggingFace", (sp, _) =>
+            {
+                var factory = sp.GetRequiredService<IHttpClientFactory>();
+                var httpClient = factory.CreateClient("HuggingFace");
+                var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ResumeSpy.Infrastructure.Services.AI.HuggingFaceTextService>>();
+                return new ResumeSpy.Infrastructure.Services.AI.HuggingFaceTextService(httpClient, config, logger);
+            });
 
             // Register the AI Orchestrator
             services.AddScoped<ResumeSpy.Infrastructure.Services.AI.AIOrchestratorService>();

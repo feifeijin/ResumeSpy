@@ -14,7 +14,6 @@ public class ResumeManagementServiceTests
     private readonly Mock<IResumeDetailService> _resumeDetailService = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<ITranslationService> _translationService = new();
-    private readonly Mock<IImageGenerationService> _imageGenerationService = new();
     private readonly Mock<IAnonymousUserService> _anonymousUserService = new();
 
     private ResumeManagementService CreateService() => new(
@@ -22,7 +21,6 @@ public class ResumeManagementServiceTests
         _resumeDetailService.Object,
         _unitOfWork.Object,
         _translationService.Object,
-        _imageGenerationService.Object,
         _anonymousUserService.Object);
 
     [Fact]
@@ -45,6 +43,58 @@ public class ResumeManagementServiceTests
         _anonymousUserService.Setup(s => s.HasReachedResumeLimitAsync(anonymousId)).ReturnsAsync(true);
 
         await Assert.ThrowsAsync<QuotaExceededException>(() => service.CreateResumeDetailAsync(model, null, anonymousId));
+    }
+
+    [Fact]
+    public async Task CreateResumeDetailAsync_DoesNotCallImageGeneration_OnExistingResume()
+    {
+        // Purpose: verify that creating a detail for an existing resume does NOT call the
+        // image generation service synchronously (thumbnail is background-queued instead).
+        var service = CreateService();
+        var model = new ResumeDetailViewModel
+        {
+            Id = "d1",
+            ResumeId = "existing-resume",
+            Content = "# My resume",
+            Language = "en"
+        };
+
+        _resumeDetailService
+            .Setup(s => s.GetResumeDetailsByResumeId("existing-resume"))
+            .ReturnsAsync(Array.Empty<ResumeDetailViewModel>());
+        _resumeDetailService
+            .Setup(s => s.Create(It.IsAny<ResumeDetailViewModel>()))
+            .ReturnsAsync(model);
+
+        var result = await service.CreateResumeDetailAsync(model, userId: "user-1", anonymousUserId: null);
+
+        Assert.NotNull(result);
+        // IImageGenerationService must never be called on the hot save path
+        // (thumbnail generation is offloaded to ThumbnailBackgroundService).
+    }
+
+    [Fact]
+    public async Task UpdateResumeDetailModelContentAsync_CommitsWithoutExtraDbFetches()
+    {
+        // Purpose: verify the update path does not perform stale re-fetches after queuing
+        // thumbnail generation. The background service owns the image-path sync.
+        var service = CreateService();
+        var model = new ResumeDetailViewModel
+        {
+            Id = "d1",
+            ResumeId = "r1",
+            Content = "updated content",
+            IsDefault = true
+        };
+
+        await service.UpdateResumeDetailModelContentAsync(model);
+
+        _resumeDetailService.Verify(s => s.Update(model), Times.Once);
+        // GetResumeDetail must NOT be called (stale re-fetch removed from hot path)
+        _resumeDetailService.Verify(s => s.GetResumeDetail(It.IsAny<string>()), Times.Never);
+        // Resume.ResumeImgPath sync belongs to ThumbnailBackgroundService — not here
+        _resumeService.Verify(s => s.Update(It.IsAny<ResumeViewModel>()), Times.Never);
+        _unitOfWork.Verify(u => u.CommitTransactionAsync(), Times.Once);
     }
 
     [Fact]

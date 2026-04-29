@@ -307,30 +307,46 @@ namespace ResumeSpy.UI.Controllers
             try
             {
                 var currentResumeDetail = await _resumeDetailService.GetResumeDetail(id);
-                var allDetails = await _resumeDetailService.GetResumeDetailsByResumeId(currentResumeDetail.ResumeId);
-                if (currentResumeDetail == null)
-                {
+                var allDetails = (await _resumeDetailService.GetResumeDetailsByResumeId(currentResumeDetail.ResumeId)).ToList();
+
+                if (allDetails.Count == 0)
                     return NotFound();
-                }
-                else if (allDetails == null || allDetails.Count() == 0)
+
+                // Identify details that need a translation update (different language, not the source)
+                var detailsToTranslate = allDetails
+                    .Where(d => !string.IsNullOrWhiteSpace(d.Language) && d.Id != currentResumeDetail.Id)
+                    .ToList();
+
+                if (detailsToTranslate.Count > 0)
                 {
-                    return NotFound();
-                }
-                else
-                {
-                    foreach (var detail in allDetails)
+                    // Fire all translation API calls in parallel — they are pure I/O and
+                    // independent of each other, so parallelism gives a direct speed-up
+                    // proportional to the number of target languages.
+                    var translationTasks = detailsToTranslate.Select(async detail =>
                     {
-                        if (!string.IsNullOrWhiteSpace(detail.Language) && detail.Id != currentResumeDetail.Id)
-                        {
-                            string translatedContent = await _translationService.TranslateTextAsync(currentResumeDetail.Content, currentResumeDetail.Language ?? "", detail.Language);
-                            detail.Content = translatedContent;
-                            detail.LastModifyTime = DateTime.UtcNow.ToShortDateString();
-                            await _resumeDetailService.Update(detail);
-                        }
+                        var translated = await _translationService.TranslateTextAsync(
+                            currentResumeDetail.Content,
+                            currentResumeDetail.Language ?? "",
+                            detail.Language ?? "");
+                        return (detail, translated);
+                    });
+
+                    var results = await Task.WhenAll(translationTasks);
+
+                    // Persist sequentially — EF Core DbContext is not thread-safe.
+                    foreach (var (detail, translatedContent) in results)
+                    {
+                        detail.Content = translatedContent;
+                        detail.LastModifyTime = DateTime.UtcNow.ToShortDateString();
+                        await _resumeDetailService.Update(detail);
                     }
                 }
 
                 return Ok(new { message = "Successfully synchronized translations for resume details" });
+            }
+            catch (NotFoundException)
+            {
+                return NotFound();
             }
             catch (Exception ex)
             {
