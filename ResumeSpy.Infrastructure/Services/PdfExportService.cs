@@ -1,11 +1,13 @@
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using ResumeSpy.Core.Interfaces.IServices;
 using SixLabors.Fonts;
+using System.Reflection;
 using System.Text;
 
 namespace ResumeSpy.Infrastructure.Services
@@ -19,6 +21,19 @@ namespace ResumeSpy.Infrastructure.Services
         {
             QuestPDF.Settings.License = LicenseType.Community;
             QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
+
+            // Register embedded CJK fonts so Chinese and Japanese glyphs always render
+            // correctly regardless of which fonts are installed on the host OS.
+            var assembly = typeof(PdfExportService).Assembly;
+            RegisterEmbeddedFont(assembly, "ResumeSpy.Infrastructure.Fonts.NotoSansSC-Regular.ttf");
+            RegisterEmbeddedFont(assembly, "ResumeSpy.Infrastructure.Fonts.NotoSansJP-Regular.ttf");
+        }
+
+        private static void RegisterEmbeddedFont(Assembly assembly, string resourceName)
+        {
+            using var stream = assembly.GetManifestResourceStream(resourceName);
+            if (stream == null) return;
+            FontManager.RegisterFont(stream);
         }
 
         public Task<byte[]> GeneratePdfAsync(string content, string title)
@@ -169,7 +184,12 @@ namespace ResumeSpy.Infrastructure.Services
                     }
                 }
 
-                return null;
+                // Fall back to the embedded Noto Sans SC font, which covers Simplified
+                // Chinese and, combined with the registered Noto Sans JP fallback font,
+                // also covers Japanese.  This guarantees CJK text is never garbled on
+                // servers where no CJK system font is installed.
+                _fontFamily = "Noto Sans SC";
+                return _fontFamily;
             }
         }
     }
