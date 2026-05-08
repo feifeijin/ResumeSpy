@@ -2,6 +2,7 @@
 ResumeSpy.UI/appsettings.Development.json
 **/bin
 **/obj
+*.lscache
 
 # Ignore generated images
 ResumeSpy.UI/wwwroot/images/
