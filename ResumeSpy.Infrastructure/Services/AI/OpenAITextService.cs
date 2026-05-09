@@ -45,7 +45,7 @@ namespace ResumeSpy.Infrastructure.Services.AI
             return !string.IsNullOrWhiteSpace(value) ? value : throw new InvalidOperationException(errorMessage);
         }
 
-        public async Task<AIResponse> GenerateResponseAsync(AIRequest request)
+        public async Task<AIResponse> GenerateResponseAsync(AIRequest request, CancellationToken cancellationToken = default)
         {
             var stopwatch = Stopwatch.StartNew();
             var modelToUse = request.ModelId ?? _defaultModel;
@@ -55,12 +55,12 @@ namespace ResumeSpy.Infrastructure.Services.AI
                 var chatClient = _client.GetChatClient(modelToUse);
 
                 var messages = new List<ChatMessage>();
-                
+
                 if (!string.IsNullOrWhiteSpace(request.SystemMessage))
                 {
                     messages.Add(new SystemChatMessage(request.SystemMessage));
                 }
-                
+
                 messages.Add(new UserChatMessage(request.Prompt));
 
                 var options = new ChatCompletionOptions
@@ -69,7 +69,7 @@ namespace ResumeSpy.Infrastructure.Services.AI
                     MaxOutputTokenCount = request.MaxTokens
                 };
 
-                var completion = await chatClient.CompleteChatAsync(messages, options);
+                var completion = await chatClient.CompleteChatAsync(messages, options, cancellationToken);
 
                 stopwatch.Stop();
 

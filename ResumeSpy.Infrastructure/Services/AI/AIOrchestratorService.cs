@@ -35,7 +35,7 @@ namespace ResumeSpy.Infrastructure.Services.AI
         /// <summary>
         /// Execute a text generation request with automatic provider selection and fallback
         /// </summary>
-        public async Task<AIResponse> ExecuteTextGenerationAsync(AIRequest request, bool useCache = true)
+        public async Task<AIResponse> ExecuteTextGenerationAsync(AIRequest request, bool useCache = true, CancellationToken cancellationToken = default)
         {
             // Generate cache key
             var cacheKey = useCache ? GenerateCacheKey(request) : null;
@@ -68,7 +68,7 @@ namespace ResumeSpy.Infrastructure.Services.AI
                         continue;
                     }
 
-                    response = await service.GenerateResponseAsync(request);
+                    response = await service.GenerateResponseAsync(request, cancellationToken);
 
                     if (response.IsSuccess)
                     {

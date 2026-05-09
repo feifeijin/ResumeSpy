@@ -43,7 +43,7 @@ namespace ResumeSpy.Infrastructure.Services.AI
             return !string.IsNullOrWhiteSpace(value) ? value : throw new InvalidOperationException(errorMessage);
         }
 
-        public async Task<AIResponse> GenerateResponseAsync(AIRequest request)
+        public async Task<AIResponse> GenerateResponseAsync(AIRequest request, CancellationToken cancellationToken = default)
         {
             var stopwatch = Stopwatch.StartNew();
             var modelToUse = request.ModelId ?? _defaultModel;
@@ -63,7 +63,7 @@ namespace ResumeSpy.Infrastructure.Services.AI
                 var json = JsonSerializer.Serialize(payload);
                 var content = new StringContent(json, Encoding.UTF8, System.Net.Mime.MediaTypeNames.Application.Json);
 
-                var response = await _httpClient.PostAsync(_endpoint, content);
+                var response = await _httpClient.PostAsync(_endpoint, content, cancellationToken);
 
                 // On rate-limit or model-loading errors, return failure immediately so the
                 // AIOrchestratorService can fall back to the next provider in the chain.

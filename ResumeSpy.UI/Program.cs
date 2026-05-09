@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,9 @@ using ResumeSpy.Infrastructure.Configuration;
 using ResumeSpy.Core.Entities.General;
 using ResumeSpy.UI.Swagger;
 
+// Enable non-UTF-8 encodings (GBK, Shift-JIS, EUC-JP, EUC-KR, …) so the
+// resume import service can read legacy CJK text files without byte loss.
+Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
 var builder = WebApplication.CreateBuilder(args);
 
