@@ -7,6 +7,10 @@ namespace ResumeSpy.UI.Controllers
     [Route("api/[controller]")]
     public class ResumeImportController : ControllerBase
     {
+        // Reasonable upper-bound for file extraction + AI processing, even for large
+        // multi-page resumes in CJK languages (which produce more tokens than Latin text).
+        private static readonly TimeSpan ImportTimeout = TimeSpan.FromSeconds(120);
+
         private readonly IResumeImportService _importService;
         private readonly ILogger<ResumeImportController> _logger;
 
@@ -24,10 +28,11 @@ namespace ResumeSpy.UI.Controllers
         /// <summary>
         /// Accepts a resume file (PDF, DOCX, DOC, TXT, MD) and returns the content
         /// converted to structured Markdown by the AI provider.
+        /// Supports files in any language including Chinese, Japanese, Korean, etc.
         /// </summary>
         [HttpPost]
         [RequestSizeLimit(10 * 1024 * 1024)]
-        public async Task<ActionResult> Import(IFormFile file)
+        public async Task<ActionResult> Import(IFormFile file, CancellationToken cancellationToken)
         {
             if (file == null || file.Length == 0)
                 return BadRequest(new { error = "No file provided." });
@@ -39,16 +44,29 @@ namespace ResumeSpy.UI.Controllers
             if (!AllowedExtensions.Contains(ext))
                 return BadRequest(new { error = $"Unsupported file type '{ext}'. Allowed: PDF, DOCX, DOC, TXT, MD." });
 
+            // Link the client-disconnect token with our own deadline so that long-running
+            // AI calls are cancelled promptly regardless of which signal fires first.
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(ImportTimeout);
+
             try
             {
                 using var stream = file.OpenReadStream();
-                var result = await _importService.ImportAsync(stream, ext);
+                var result = await _importService.ImportAsync(stream, ext, cts.Token);
 
                 return Ok(new
                 {
                     markdown = result.Markdown,
                     suggestedTitle = result.SuggestedTitle,
                 });
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Our deadline fired before the client disconnected.
+                _logger.LogWarning(
+                    "Resume import timed out after {Seconds}s for file '{Name}'.",
+                    (int)ImportTimeout.TotalSeconds, file.FileName);
+                return StatusCode(504, new { error = $"The request timed out after {(int)ImportTimeout.TotalSeconds} seconds. Please try again or upload a smaller file." });
             }
             catch (NotSupportedException ex)
             {
