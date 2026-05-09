@@ -47,16 +47,31 @@ namespace ResumeSpy.Infrastructure.Services
 
         private static string ExtractFromPdf(Stream stream)
         {
-            using var pdf = PdfDocument.Open(stream);
-            var sb = new StringBuilder();
-            foreach (Page page in pdf.GetPages())
-                sb.AppendLine(page.Text);
-            return sb.ToString();
+            // Buffer the upload stream so PdfPig gets a seekable, fully-loaded
+            // MemoryStream — raw upload streams are forward-only and may stall on
+            // repeated reads inside the parser.
+            using var ms = new MemoryStream();
+            stream.CopyTo(ms);
+            ms.Position = 0;
+
+            using var pdf = PdfDocument.Open(ms);
+            var pages = pdf.GetPages().ToList();
+
+            // Extract page text in parallel for large multi-page documents.
+            var pageTexts = new string[pages.Count];
+            Parallel.For(0, pages.Count, i => pageTexts[i] = pages[i].Text);
+
+            return string.Join(Environment.NewLine, pageTexts);
         }
 
         private static string ExtractFromDocx(Stream stream)
         {
-            using var doc = WordprocessingDocument.Open(stream, false);
+            // Buffer for the same reason as PDF — OpenXml requires a seekable stream.
+            using var ms = new MemoryStream();
+            stream.CopyTo(ms);
+            ms.Position = 0;
+
+            using var doc = WordprocessingDocument.Open(ms, false);
             var body = doc.MainDocumentPart?.Document?.Body;
             if (body == null) return string.Empty;
 
@@ -191,7 +206,7 @@ namespace ResumeSpy.Infrastructure.Services
                 SystemMessage = ImportPrompts.SystemMessage,
                 Temperature = 0.2,
                 MaxTokens = 4096,
-            }, useCache: false, cancellationToken: cancellationToken);
+            }, useCache: true, cancellationToken: cancellationToken);
 
             if (!response.IsSuccess || string.IsNullOrWhiteSpace(response.Content))
                 throw new InvalidOperationException($"AI conversion failed: {response.ErrorMessage}");
