@@ -50,11 +50,11 @@ namespace ResumeSpy.UI.Extensions
             #region AI Services
             // Register AI providers with keyed services.
             // HuggingFace uses a named HttpClient so we can configure a request timeout
-            // independently of the default client. A 30-second ceiling prevents free-tier
-            // latency spikes from hanging the request indefinitely.
+            // independently of the default client. 120 seconds accommodates free-tier
+            // latency spikes and larger payloads such as Markdown resume imports.
             services.AddHttpClient("HuggingFace", client =>
             {
-                client.Timeout = TimeSpan.FromSeconds(30);
+                client.Timeout = TimeSpan.FromSeconds(120);
             });
             services.AddKeyedSingleton<IGenerativeTextService, OpenAITextService>("OpenAI");
             services.AddKeyedSingleton<IGenerativeTextService>("HuggingFace", (sp, _) =>
