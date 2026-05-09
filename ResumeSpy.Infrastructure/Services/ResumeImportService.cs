@@ -16,7 +16,7 @@ namespace ResumeSpy.Infrastructure.Services
         private readonly ILogger<ResumeImportService> _logger;
 
         private static readonly HashSet<string> SupportedExtensions =
-            new(StringComparer.OrdinalIgnoreCase) { ".pdf", ".docx", ".doc", ".txt" };
+            new(StringComparer.OrdinalIgnoreCase) { ".pdf", ".docx", ".doc", ".txt", ".md" };
 
         public ResumeImportService(AIOrchestratorService aiOrchestrator, ILogger<ResumeImportService> logger)
         {
@@ -33,7 +33,7 @@ namespace ResumeSpy.Infrastructure.Services
             {
                 ".pdf"  => ExtractFromPdf(stream),
                 ".docx" or ".doc" => ExtractFromDocx(stream),
-                ".txt"  => await ExtractFromTxt(stream),
+                ".txt" or ".md"   => await ExtractFromTxt(stream),
                 _       => throw new NotSupportedException($"File type '{extension}' is not supported.")
             };
 

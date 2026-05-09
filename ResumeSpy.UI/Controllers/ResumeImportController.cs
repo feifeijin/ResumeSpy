@@ -11,7 +11,7 @@ namespace ResumeSpy.UI.Controllers
         private readonly ILogger<ResumeImportController> _logger;
 
         private static readonly HashSet<string> AllowedExtensions =
-            new(StringComparer.OrdinalIgnoreCase) { ".pdf", ".docx", ".doc", ".txt" };
+            new(StringComparer.OrdinalIgnoreCase) { ".pdf", ".docx", ".doc", ".txt", ".md" };
 
         private const long MaxFileSizeBytes = 10 * 1024 * 1024; // 10 MB
 
@@ -22,7 +22,7 @@ namespace ResumeSpy.UI.Controllers
         }
 
         /// <summary>
-        /// Accepts a resume file (PDF, DOCX, DOC, TXT) and returns the content
+        /// Accepts a resume file (PDF, DOCX, DOC, TXT, MD) and returns the content
         /// converted to structured Markdown by the AI provider.
         /// </summary>
         [HttpPost]
@@ -37,7 +37,7 @@ namespace ResumeSpy.UI.Controllers
 
             var ext = Path.GetExtension(file.FileName);
             if (!AllowedExtensions.Contains(ext))
-                return BadRequest(new { error = $"Unsupported file type '{ext}'. Allowed: PDF, DOCX, DOC, TXT." });
+                return BadRequest(new { error = $"Unsupported file type '{ext}'. Allowed: PDF, DOCX, DOC, TXT, MD." });
 
             try
             {
