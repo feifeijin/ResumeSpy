@@ -70,6 +70,46 @@ public class ResumeRepositoryTests
     }
 
     [Fact]
+    public async Task GetByUserIdAsync_ReturnsResultsOrderedByEntryDateDescending()
+    {
+        // Purpose: verify the repository pushes newest-first ordering to the database
+        // so controllers and services receive an already-sorted list without an extra
+        // in-memory pass.
+        await using var context = RepositoryTestDbFactory.CreateContext();
+        var repo = new ResumeRepository(context);
+        var now = DateTime.UtcNow;
+
+        await repo.Create(new Resume { Id = "r1", Title = "Oldest", UserId = "u1", EntryDate = now.AddDays(-2) });
+        await repo.Create(new Resume { Id = "r2", Title = "Newest", UserId = "u1", EntryDate = now });
+        await repo.Create(new Resume { Id = "r3", Title = "Middle", UserId = "u1", EntryDate = now.AddDays(-1) });
+        await context.SaveChangesAsync();
+
+        var result = await repo.GetByUserIdAsync("u1");
+
+        Assert.Equal(3, result.Count);
+        Assert.Equal(new[] { "r2", "r3", "r1" }, result.Select(r => r.Id));
+    }
+
+    [Fact]
+    public async Task GetByAnonymousUserIdAsync_ReturnsResultsOrderedByEntryDateDescending()
+    {
+        // Purpose: verify anonymous-user resume list is also returned in newest-first order.
+        await using var context = RepositoryTestDbFactory.CreateContext();
+        var repo = new ResumeRepository(context);
+        var anonId = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        await repo.Create(new Resume { Id = "r1", Title = "Old", AnonymousUserId = anonId, EntryDate = now.AddDays(-1) });
+        await repo.Create(new Resume { Id = "r2", Title = "New", AnonymousUserId = anonId, EntryDate = now });
+        await context.SaveChangesAsync();
+
+        var result = await repo.GetByAnonymousUserIdAsync(anonId);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(new[] { "r2", "r1" }, result.Select(r => r.Id));
+    }
+
+    [Fact]
     public async Task Update_And_Delete_PersistChanges()
     {
         // Purpose: verify update and delete operations persist through DbContext save.

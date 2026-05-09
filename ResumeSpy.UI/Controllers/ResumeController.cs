@@ -22,9 +22,17 @@ namespace ResumeSpy.UI.Controllers
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMemoryCache _memoryCache;
 
+        /// <summary>
+        /// How long a user's resume list is cached in memory.
+        /// Short enough that mutations (create/update/delete) are reflected quickly
+        /// even if the explicit cache-bust misses, but long enough to absorb repeated
+        /// page loads during a single session and eliminate cold-connection latency.
+        /// </summary>
+        private static readonly TimeSpan ResumeCacheTtl = TimeSpan.FromSeconds(30);
+
         public ResumeController(
-            ILogger<ResumeController> logger, 
-            IResumeService resumeService, 
+            ILogger<ResumeController> logger,
+            IResumeService resumeService,
             IResumeManagementService resumeManagementService,
             IAnonymousUserService anonymousUserService,
             IUnitOfWork unitOfWork,
@@ -43,11 +51,20 @@ namespace ResumeSpy.UI.Controllers
         {
             var userId = HttpContext.GetEffectiveUserId();
             var anonymousUserId = HttpContext.GetAnonymousUserId();
-            
-            var resumes = (await _resumeService.GetResumes(userId, anonymousUserId))
-                .OrderByDescending(r => r.EntryDate)
-                .ToList();
-            
+
+            var cacheKey = BuildResumeCacheKey(userId, anonymousUserId);
+
+            // Serve from cache when possible to avoid a DB round-trip on every page load.
+            // The repository already returns records ordered by EntryDate DESC, so no
+            // additional in-memory sort is required.
+            if (cacheKey is not null && _memoryCache.TryGetValue(cacheKey, out List<ResumeViewModel>? cached) && cached is not null)
+                return Ok(cached);
+
+            var resumes = (await _resumeService.GetResumes(userId, anonymousUserId)).ToList();
+
+            if (cacheKey is not null)
+                _memoryCache.Set(cacheKey, resumes, ResumeCacheTtl);
+
             return Ok(resumes);
         }
 
@@ -57,20 +74,20 @@ namespace ResumeSpy.UI.Controllers
             try
             {
                 var resume = await _resumeService.GetResume(id);
-                
+
                 // Authorization check
                 var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
-                
-                bool isAuthorized = 
+
+                bool isAuthorized =
                     (!string.IsNullOrEmpty(userId) && resume.UserId == userId) ||
                     (anonymousUserId.HasValue && resume.AnonymousUserId == anonymousUserId);
-                
+
                 if (!isAuthorized)
                 {
                     return Forbid();
                 }
-                
+
                 return Ok(resume);
             }
             catch (Exception)
@@ -86,7 +103,7 @@ namespace ResumeSpy.UI.Controllers
             {
                 var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
-                
+
                 // Authenticated users get full access
                 if (!string.IsNullOrEmpty(userId))
                 {
@@ -95,6 +112,7 @@ namespace ResumeSpy.UI.Controllers
                     resume.AnonymousUserId = null;
                     resume.ExpiresAt = null;
                     var createdResume = await _resumeService.Create(resume);
+                    InvalidateResumeCache(userId, anonymousUserId);
                     return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
                 }
 
@@ -133,6 +151,7 @@ namespace ResumeSpy.UI.Controllers
                     }
 
                     _logger.LogInformation("Anonymous resume created: {ResumeId} from user {AnonymousUserId}", createdResume.Id, anonymousUserId.Value);
+                    InvalidateResumeCache(userId, anonymousUserId);
                     return CreatedAtAction(nameof(GetResume), new { id = createdResume.Id }, createdResume);
                 }
 
@@ -151,22 +170,23 @@ namespace ResumeSpy.UI.Controllers
             try
             {
                 var existingResume = await _resumeService.GetResume(id);
-                
+
                 // Authorization check
                 var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
-                
-                bool isAuthorized = 
+
+                bool isAuthorized =
                     (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
                     (anonymousUserId.HasValue && existingResume.AnonymousUserId == anonymousUserId);
-                
+
                 if (!isAuthorized)
                 {
                     return Forbid();
                 }
-                
+
                 updatedResume.Id = id; // Ensure the ID matches the route parameter
                 await _resumeService.Update(updatedResume);
+                InvalidateResumeCache(userId, anonymousUserId);
                 return Ok(updatedResume);
             }
             catch (Exception)
@@ -181,22 +201,23 @@ namespace ResumeSpy.UI.Controllers
             try
             {
                 var existingResume = await _resumeService.GetResume(id);
-                
+
                 // Authorization check
                 var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
-                
-                bool isAuthorized = 
+
+                bool isAuthorized =
                     (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
                     (anonymousUserId.HasValue && existingResume.AnonymousUserId == anonymousUserId);
-                
+
                 if (!isAuthorized)
                 {
                     return Forbid();
                 }
-                
+
                 existingResume.Title = title;
                 await _resumeService.Update(existingResume);
+                InvalidateResumeCache(userId, anonymousUserId);
                 return Ok(existingResume);
             }
             catch (Exception)
@@ -211,21 +232,22 @@ namespace ResumeSpy.UI.Controllers
             try
             {
                 var existingResume = await _resumeService.GetResume(id);
-                
+
                 // Authorization check
                 var userId = HttpContext.GetEffectiveUserId();
                 var anonymousUserId = HttpContext.GetAnonymousUserId();
-                
-                bool isAuthorized = 
+
+                bool isAuthorized =
                     (!string.IsNullOrEmpty(userId) && existingResume.UserId == userId) ||
                     (anonymousUserId.HasValue && existingResume.AnonymousUserId == anonymousUserId);
-                
+
                 if (!isAuthorized)
                 {
                     return Forbid();
                 }
-                
+
                 var clonedResume = await _resumeManagementService.CloneResumeAsync(id, userId, anonymousUserId);
+                InvalidateResumeCache(userId, anonymousUserId);
                 return CreatedAtAction(nameof(GetResume), new { id = clonedResume.Id }, clonedResume);
             }
             catch (Exception ex)
@@ -246,6 +268,7 @@ namespace ResumeSpy.UI.Controllers
                 // Use atomic deletion that properly handles anonymous user count decrement
                 await _resumeManagementService.DeleteResumeAtomicAsync(id, userId, anonymousUserId);
 
+                InvalidateResumeCache(userId, anonymousUserId);
                 _logger.LogInformation($"Resume {id} deleted successfully");
                 return NoContent();
             }
@@ -264,6 +287,31 @@ namespace ResumeSpy.UI.Controllers
                 _logger.LogError($"Error deleting resume {id}: {ex.Message}");
                 return StatusCode(500, new { error = "An error occurred while deleting the resume" });
             }
+        }
+
+        // ── Helpers ──────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns a deterministic cache key for the resume list of this user,
+        /// or <c>null</c> when neither identity is present (unauthenticated, no header).
+        /// </summary>
+        public static string? BuildResumeCacheKey(string? userId, Guid? anonymousUserId)
+        {
+            if (!string.IsNullOrEmpty(userId))
+                return $"resumes:user:{userId}";
+
+            if (anonymousUserId.HasValue)
+                return $"resumes:anon:{anonymousUserId}";
+
+            return null;
+        }
+
+        /// <summary>Removes the cached resume list for the current identity after a mutation.</summary>
+        private void InvalidateResumeCache(string? userId, Guid? anonymousUserId)
+        {
+            var key = BuildResumeCacheKey(userId, anonymousUserId);
+            if (key is not null)
+                _memoryCache.Remove(key);
         }
     }
 }
