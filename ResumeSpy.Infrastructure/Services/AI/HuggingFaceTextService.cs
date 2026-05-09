@@ -4,6 +4,7 @@ using ResumeSpy.Core.AI;
 using ResumeSpy.Core.Interfaces.AI;
 using System.Diagnostics;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -15,6 +16,15 @@ namespace ResumeSpy.Infrastructure.Services.AI
     /// </summary>
     public class HuggingFaceTextService : IGenerativeTextService
     {
+        // UnsafeRelaxedJsonEscaping keeps non-ASCII characters (CJK, etc.) as their
+        // literal UTF-8 form instead of \uXXXX sequences. Without this, the AI model
+        // receives escape sequences rather than actual Chinese/Japanese text and cannot
+        // process the content.
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
+
         private readonly HttpClient _httpClient;
         private readonly ILogger<HuggingFaceTextService> _logger;
         private readonly string _apiToken;
@@ -60,7 +70,7 @@ namespace ResumeSpy.Infrastructure.Services.AI
                     Stream = false
                 };
 
-                var json = JsonSerializer.Serialize(payload);
+                var json = JsonSerializer.Serialize(payload, _jsonOptions);
                 var content = new StringContent(json, Encoding.UTF8, System.Net.Mime.MediaTypeNames.Application.Json);
 
                 var response = await _httpClient.PostAsync(_endpoint, content);
