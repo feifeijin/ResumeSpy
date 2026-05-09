@@ -27,6 +27,12 @@ namespace ResumeSpy.UI.Extensions
             services.AddSingleton<ThumbnailBackgroundService>();
             services.AddSingleton<IThumbnailQueue>(sp => sp.GetRequiredService<ThumbnailBackgroundService>());
             services.AddHostedService(sp => sp.GetRequiredService<ThumbnailBackgroundService>());
+
+            // DatabaseWarmupService fires a trivial SELECT 1 at startup so the Npgsql
+            // connection pool has at least one open connection before the first user
+            // request arrives. This eliminates the 1-3 s cold-start latency that users
+            // would otherwise experience the first time they open the resume list.
+            services.AddHostedService<DatabaseWarmupService>();
             #endregion
 
             #region Services
