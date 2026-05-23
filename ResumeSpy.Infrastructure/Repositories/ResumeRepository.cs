@@ -17,15 +17,25 @@ namespace ResumeSpy.Infrastructure.Repositories
 
         public async Task<List<Resume>> GetByAnonymousUserIdAsync(Guid anonymousUserId)
         {
+            // AsNoTracking: these are read-only projections; no change-tracking overhead needed.
+            // OrderByDescending: sort at the database level so the caller always receives
+            // records in newest-first order without an extra in-memory pass.
             return await DbSet
+                .AsNoTracking()
                 .Where(r => r.AnonymousUserId == anonymousUserId)
+                .OrderByDescending(r => r.EntryDate)
                 .ToListAsync();
         }
 
         public async Task<List<Resume>> GetByUserIdAsync(string userId)
         {
+            // AsNoTracking: read-only — skip the change-tracker overhead.
+            // OrderByDescending: let the database (which already has an index on UserId)
+            // perform the sort rather than doing it later in application memory.
             return await DbSet
+                .AsNoTracking()
                 .Where(r => r.UserId == userId)
+                .OrderByDescending(r => r.EntryDate)
                 .ToListAsync();
         }
 

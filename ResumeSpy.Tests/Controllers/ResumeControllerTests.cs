@@ -54,17 +54,57 @@ public class ResumeControllerTests
         return controller;
     }
 
-    [Fact]
-    public async Task GetResumes_ReturnsOrderedListDescendingByEntryDate()
+    /// <summary>
+    /// Creates a controller backed by a real <see cref="MemoryCache"/> instance so that
+    /// caching behaviour can be verified end-to-end within a single test.
+    /// </summary>
+    private ResumeController CreateControllerWithRealCache(string? userId = null, Guid? anonymousUserId = null)
     {
-        // Purpose: verify the controller sorts resume response by EntryDate descending.
+        var realCache = new MemoryCache(new MemoryCacheOptions());
+        var controller = new ResumeController(
+            _logger.Object,
+            _resumeService.Object,
+            _resumeManagementService.Object,
+            _anonymousUserService.Object,
+            _unitOfWork.Object,
+            realCache);
+
+        var context = new DefaultHttpContext();
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            context.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, userId)],
+            "TestAuth"));
+        }
+        else
+        {
+            context.User = new ClaimsPrincipal(new ClaimsIdentity());
+        }
+
+        if (anonymousUserId.HasValue)
+            context.Items["AnonymousUserId"] = anonymousUserId.Value;
+
+        controller.ControllerContext = new ControllerContext { HttpContext = context };
+        return controller;
+    }
+
+    [Fact]
+    public async Task GetResumes_ReturnsResumeListInServiceOrder()
+    {
+        // Purpose: verify the controller returns the resume list exactly as the service
+        // provides it. Ordering is now the repository's responsibility (pushed to the
+        // SQL query), so the controller should pass the list through unchanged.
+        // Uses a real MemoryCache to avoid mock-CreateEntry NullReferenceException.
         var userId = "user-1";
-        var controller = CreateController(userId: userId);
+        var controller = CreateControllerWithRealCache(userId: userId);
+
+        // Service (and therefore the underlying repository) already returns newest-first.
         var source = new List<ResumeViewModel>
         {
-            new() { Id = "1", EntryDate = "2026-01-01" },
             new() { Id = "2", EntryDate = "2026-03-01" },
-            new() { Id = "3", EntryDate = "2026-02-01" }
+            new() { Id = "3", EntryDate = "2026-02-01" },
+            new() { Id = "1", EntryDate = "2026-01-01" }
         };
 
         _resumeService.Setup(s => s.GetResumes(userId, null)).ReturnsAsync(source);
@@ -74,6 +114,93 @@ public class ResumeControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsAssignableFrom<IEnumerable<ResumeViewModel>>(ok.Value);
         Assert.Equal(new[] { "2", "3", "1" }, payload.Select(x => x.Id));
+    }
+
+    [Fact]
+    public async Task GetResumes_UsesCachedResult_OnSecondCall()
+    {
+        // Purpose: verify that the in-memory cache prevents a second database round-trip
+        // when the same user calls GET /api/resume twice in quick succession.
+        var userId = "user-cache";
+        var controller = CreateControllerWithRealCache(userId: userId);
+        var source = new List<ResumeViewModel> { new() { Id = "r1", EntryDate = "2026-01-01" } };
+
+        _resumeService.Setup(s => s.GetResumes(userId, null)).ReturnsAsync(source);
+
+        // First call — cache miss, hits the service.
+        await controller.GetResumes();
+        // Second call — should be served from cache without hitting the service again.
+        await controller.GetResumes();
+
+        _resumeService.Verify(s => s.GetResumes(userId, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetResumes_HitsServiceAgain_AfterCacheInvalidatedByCreate()
+    {
+        // Purpose: verify that creating a resume removes the cached list so the next
+        // GET sees the fresh data from the database.
+        var userId = "user-invalidate";
+        var controller = CreateControllerWithRealCache(userId: userId);
+        var source = new List<ResumeViewModel> { new() { Id = "r1" } };
+
+        _resumeService.Setup(s => s.GetResumes(userId, null)).ReturnsAsync(source);
+        _resumeService.Setup(s => s.Create(It.IsAny<ResumeViewModel>()))
+            .ReturnsAsync((ResumeViewModel m) => m);
+
+        // First GET — populates cache.
+        await controller.GetResumes();
+        // Create — must invalidate cache.
+        await controller.CreateResume(new ResumeViewModel { Id = "r2", Title = "New" });
+        // Second GET — cache was busted, service must be called again.
+        await controller.GetResumes();
+
+        _resumeService.Verify(s => s.GetResumes(userId, null), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task GetResumes_HitsServiceAgain_AfterCacheInvalidatedByDelete()
+    {
+        // Purpose: verify that deleting a resume removes the cached list.
+        var userId = "user-del";
+        var controller = CreateControllerWithRealCache(userId: userId);
+        var source = new List<ResumeViewModel> { new() { Id = "r1" } };
+
+        _resumeService.Setup(s => s.GetResumes(userId, null)).ReturnsAsync(source);
+        _resumeManagementService
+            .Setup(s => s.DeleteResumeAtomicAsync("r1", userId, null))
+            .Returns(Task.CompletedTask);
+
+        await controller.GetResumes();
+        await controller.DeleteResume("r1");
+        await controller.GetResumes();
+
+        _resumeService.Verify(s => s.GetResumes(userId, null), Times.Exactly(2));
+    }
+
+    [Fact]
+    public void BuildResumeCacheKey_ReturnsUserKey_WhenUserIdPresent()
+    {
+        // Purpose: verify deterministic cache key generation for authenticated users.
+        var key = ResumeController.BuildResumeCacheKey("user-abc", null);
+        Assert.Equal("resumes:user:user-abc", key);
+    }
+
+    [Fact]
+    public void BuildResumeCacheKey_ReturnsAnonKey_WhenOnlyAnonymousIdPresent()
+    {
+        // Purpose: verify deterministic cache key generation for anonymous users.
+        var anonId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        var key = ResumeController.BuildResumeCacheKey(null, anonId);
+        Assert.Equal($"resumes:anon:{anonId}", key);
+    }
+
+    [Fact]
+    public void BuildResumeCacheKey_ReturnsNull_WhenNoIdentity()
+    {
+        // Purpose: verify null is returned when no identity is available so caching is skipped.
+        var key = ResumeController.BuildResumeCacheKey(null, null);
+        Assert.Null(key);
     }
 
     [Fact]
