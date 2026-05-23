@@ -40,6 +40,12 @@ namespace ResumeSpy.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(rawText))
                 throw new InvalidOperationException("No readable text found in the uploaded file.");
 
+            if (extension.Equals(".md", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Extracted {Chars} chars from .md file. Returning as-is.", rawText.Length);
+                return new ResumeImportResult(rawText, ExtractMarkdownTitle(rawText));
+            }
+
             _logger.LogInformation("Extracted {Chars} chars from {Ext} file. Sending to AI.", rawText.Length, extension);
 
             return await ConvertToMarkdownAsync(rawText, cancellationToken);
@@ -197,6 +203,14 @@ namespace ResumeSpy.Infrastructure.Services
         private static int CountJapaneseSyllabics(string text) =>
             text.Count(c => (c >= '぀' && c <= 'ゟ') ||
                             (c >= '゠' && c <= 'ヿ'));
+
+        private static string ExtractMarkdownTitle(string markdown)
+        {
+            var heading = markdown.Split('\n')
+                .Select(l => l.Trim())
+                .FirstOrDefault(l => l.StartsWith("# "));
+            return heading != null ? heading[2..].Trim() : "Imported Resume";
+        }
 
         private async Task<ResumeImportResult> ConvertToMarkdownAsync(string rawText, CancellationToken cancellationToken)
         {
