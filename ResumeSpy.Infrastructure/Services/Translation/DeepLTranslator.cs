@@ -7,6 +7,13 @@ using System.Linq;
 
 namespace ResumeSpy.Infrastructure.Services.Translation
 {
+    /// <summary>
+    /// DeepL translator. Sends raw content to the DeepL API as-is. Unlike the AI
+    /// translator, this path cannot enforce résumé-specific rules (keep personal /
+    /// company names, translate job titles but not certifications, preserve Markdown);
+    /// DeepL receives no such instructions. Use TranslatorType.AI for résumé-aware
+    /// translation. See TranslationPrompts for the AI rule set.
+    /// </summary>
     internal class DeepLTranslator : BaseTranslator
     {
         public DeepLTranslator(HttpClient httpClient, string apiKey, string endpoint)
