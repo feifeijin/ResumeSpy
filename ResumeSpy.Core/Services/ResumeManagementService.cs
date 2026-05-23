@@ -15,19 +15,22 @@ namespace ResumeSpy.Core.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly ITranslationService _translationService;
         private readonly IAnonymousUserService _anonymousUserService;
+        private readonly IResumeVersionService _versionService;
 
         public ResumeManagementService(
             IResumeService resumeService,
             IResumeDetailService resumeDetailService,
             IUnitOfWork unitOfWork,
             ITranslationService translationService,
-            IAnonymousUserService anonymousUserService)
+            IAnonymousUserService anonymousUserService,
+            IResumeVersionService versionService)
         {
             _resumeService = resumeService;
             _resumeDetailService = resumeDetailService;
             _unitOfWork = unitOfWork;
             _translationService = translationService;
             _anonymousUserService = anonymousUserService;
+            _versionService = versionService;
         }
 
         public async Task<ResumeDetailViewModel> CreateResumeDetailAsync(ResumeDetailViewModel model, string? userId = null, Guid? anonymousUserId = null)
@@ -81,6 +84,7 @@ namespace ResumeSpy.Core.Services
             // Thumbnail is generated asynchronously by ThumbnailBackgroundService
             // via the queue enqueued inside ResumeDetailService.Create — no blocking call here.
             var result = await _resumeDetailService.Create(model);
+            await _versionService.SaveVersionAsync(result.Id, result.Content ?? string.Empty, "Initial import");
             return result;
         }
 
@@ -125,6 +129,7 @@ namespace ResumeSpy.Core.Services
                 model.ResumeId = createdResume.Id;
                 model.Id = newResumeDetailId;
                 var result = await _resumeDetailService.Create(model);
+                await _versionService.SaveVersionAsync(result.Id, result.Content ?? string.Empty, "Initial import");
 
                 // Save all changes within the transaction
                 await _unitOfWork.SaveChangesAsync();

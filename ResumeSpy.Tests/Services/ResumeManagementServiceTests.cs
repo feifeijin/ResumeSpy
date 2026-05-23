@@ -15,13 +15,15 @@ public class ResumeManagementServiceTests
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<ITranslationService> _translationService = new();
     private readonly Mock<IAnonymousUserService> _anonymousUserService = new();
+    private readonly Mock<IResumeVersionService> _versionService = new();
 
     private ResumeManagementService CreateService() => new(
         _resumeService.Object,
         _resumeDetailService.Object,
         _unitOfWork.Object,
         _translationService.Object,
-        _anonymousUserService.Object);
+        _anonymousUserService.Object,
+        _versionService.Object);
 
     [Fact]
     public async Task CreateResumeDetailAsync_ThrowsUnauthorized_WhenAnonymousIdentityMissing()
@@ -71,6 +73,67 @@ public class ResumeManagementServiceTests
         Assert.NotNull(result);
         // IImageGenerationService must never be called on the hot save path
         // (thumbnail generation is offloaded to ThumbnailBackgroundService).
+    }
+
+    [Fact]
+    public async Task CreateResumeDetailAsync_SavesInitialVersion_OnExistingResume()
+    {
+        // Purpose: verify that creating a detail for an existing resume saves an initial history version.
+        var service = CreateService();
+        // The service overwrites model.Id with (existingCount + 1).ToString(), so with 0 existing details Id becomes "1".
+        var model = new ResumeDetailViewModel
+        {
+            Id = "d1",
+            ResumeId = "existing-resume",
+            Content = "# My resume",
+            Language = "en"
+        };
+
+        _resumeDetailService
+            .Setup(s => s.GetResumeDetailsByResumeId("existing-resume"))
+            .ReturnsAsync(Array.Empty<ResumeDetailViewModel>());
+        _resumeDetailService
+            .Setup(s => s.Create(It.IsAny<ResumeDetailViewModel>()))
+            .ReturnsAsync(model);
+        _versionService
+            .Setup(s => s.SaveVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(new ResumeVersionViewModel());
+
+        await service.CreateResumeDetailAsync(model, userId: "user-1", anonymousUserId: null);
+
+        // model.Id is reassigned to "1" by the service before calling Create
+        _versionService.Verify(s => s.SaveVersionAsync("1", "# My resume", "Initial import"), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateResumeDetailAsync_SavesInitialVersion_OnNewResume()
+    {
+        // Purpose: verify that creating a first-time resume detail saves an initial history version.
+        var service = CreateService();
+        var anonymousId = Guid.NewGuid();
+        var detailId = Guid.NewGuid().ToString();
+        var model = new ResumeDetailViewModel
+        {
+            Id = detailId,
+            ResumeId = "undefined",
+            Content = "# Imported resume",
+            Language = "en"
+        };
+
+        var createdResume = new ResumeViewModel { Id = "new-resume" };
+        var createdDetail = new ResumeDetailViewModel { Id = detailId, ResumeId = "new-resume", Content = "# Imported resume" };
+
+        _anonymousUserService.Setup(s => s.HasReachedResumeLimitAsync(anonymousId)).ReturnsAsync(false);
+        _anonymousUserService.Setup(s => s.TryAcquireResumeSlotAsync(anonymousId)).ReturnsAsync(true);
+        _resumeService.Setup(s => s.Create(It.IsAny<ResumeViewModel>())).ReturnsAsync(createdResume);
+        _resumeDetailService.Setup(s => s.Create(It.IsAny<ResumeDetailViewModel>())).ReturnsAsync(createdDetail);
+        _versionService
+            .Setup(s => s.SaveVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(new ResumeVersionViewModel());
+
+        await service.CreateResumeDetailAsync(model, userId: null, anonymousUserId: anonymousId);
+
+        _versionService.Verify(s => s.SaveVersionAsync(detailId, "# Imported resume", "Initial import"), Times.Once);
     }
 
     [Fact]
