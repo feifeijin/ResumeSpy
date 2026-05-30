@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -131,37 +132,42 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
-// Add CORS services
+// CORS allowlist is environment-specific and loaded from configuration.
+// See Cors:* in appsettings.json or the matching env vars (Cors__AllowedOrigins__0, ...).
+var corsLocalhostPorts = builder.Configuration.GetSection("Cors:LocalhostPorts").Get<int[]>() ?? Array.Empty<int>();
+var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+var corsAllowedHostSuffixes = builder.Configuration.GetSection("Cors:AllowedHostSuffixes").Get<string[]>() ?? Array.Empty<string>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowSpecificOrigin",
-        builder => builder
+        policy => policy
             .SetIsOriginAllowed(origin =>
             {
                 if (string.IsNullOrWhiteSpace(origin) || !Uri.TryCreate(origin, UriKind.Absolute, out var uri))
                     return false;
 
-                // Local frontend development
-                if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) && (uri.Port == 5173 || uri.Port == 7227))
+                if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                    && corsLocalhostPorts.Contains(uri.Port))
                     return true;
 
-                // Known production Vercel domain
-                if (uri.Host.Equals("resume-spy-web.vercel.app", StringComparison.OrdinalIgnoreCase))
-                    return true;
+                foreach (var allowed in corsAllowedOrigins)
+                {
+                    if (uri.Host.Equals(allowed, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
 
-                // Custom subdomain
-                if (uri.Host.Equals("resumespy.feifeijin.com", StringComparison.OrdinalIgnoreCase))
-                    return true;
-
-                // Vercel preview domains for this project/user namespace
-                if (uri.Host.EndsWith("-feifeijins-projects.vercel.app", StringComparison.OrdinalIgnoreCase))
-                    return true;
+                foreach (var suffix in corsAllowedHostSuffixes)
+                {
+                    if (uri.Host.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
 
                 return false;
             })
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials()); // Add this for better cross-origin support
+            .AllowCredentials());
 });
 
 var app = builder.Build();

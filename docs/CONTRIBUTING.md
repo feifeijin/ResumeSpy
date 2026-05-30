@@ -505,7 +505,7 @@ Examples:
 - **Questions**: Open a GitHub Discussion
 - **Bugs**: Create an issue with `bug` label
 - **Features**: Create an issue with `enhancement` label
-- **Security**: Email security@resumespy.com (private disclosure)
+- **Security**: See [SECURITY.md](../SECURITY.md) for private disclosure
 
 ## Code of Conduct
 

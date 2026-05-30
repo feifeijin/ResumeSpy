@@ -1,25 +1,51 @@
-/.vscode
-ResumeSpy.UI/appsettings.Development.json
-**/bin
-**/obj
+# ── Build output ─────────────────────────────────────────
+**/bin/
+**/obj/
+/publish/
+*.dll
+*.pdb
+*.exe
 *.lscache
 
-# Ignore generated images
-ResumeSpy.UI/wwwroot/images/
+# ── IDE / editor ─────────────────────────────────────────
+/.vscode/
+/.vs/
+/.idea/
+*.user
+*.suo
+*.userprefs
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
 
-# Local development scripts (not for GitHub)
+# ── Secrets / environment-specific config ────────────────
+*.env
+!.env.example
+.env.local
+.env.dev
+.env.production
+ResumeSpy.UI/appsettings.Development.json
+ResumeSpy.UI/appsettings.Production.json
+ResumeSpy.UI/appsettings.*.local.json
+secrets.json
+
+# ── Local-only scripts and data ──────────────────────────
 Scripts/LocalDev/
 *.local.sql
 *.dev-only.sql
 
-# CI/CD artifacts
-/publish
-*.env
-!.env.example
+# ── Generated / runtime artifacts ────────────────────────
+ResumeSpy.UI/wwwroot/images/
+**/TestResults/
+coverage/
+*.coverage
+*.coveragexml
 
-# Production config (secrets injected at deploy time)
-ResumeSpy.UI/appsettings.Production.json
+# ── Logs ─────────────────────────────────────────────────
+*.log
+logs/
 
-# Local/Dev environment files
-.env.local
-.env.dev
+# ── OS / misc ────────────────────────────────────────────
+*.bak
+*.tmp

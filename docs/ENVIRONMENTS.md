@@ -183,8 +183,8 @@ CORS must be configured per environment to allow frontend access.
 ```json
 {
   "AllowedOrigins": [
-    "https://dev.resumespy.com",
-    "https://resumespy-dev.vercel.app"
+    "https://dev.example.com",
+    "https://your-frontend-dev.example.app"
   ]
 }
 ```
@@ -193,8 +193,8 @@ CORS must be configured per environment to allow frontend access.
 ```json
 {
   "AllowedOrigins": [
-    "https://resumespy.com",
-    "https://www.resumespy.com"
+    "https://example.com",
+    "https://www.example.com"
   ]
 }
 ```
@@ -207,15 +207,15 @@ CORS must be configured per environment to allow frontend access.
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create separate OAuth apps for DEV and PROD
 3. Configure authorized redirect URIs:
-   - **DEV**: `https://dev.resumespy.com/auth/google/callback`
-   - **PROD**: `https://resumespy.com/auth/google/callback`
+   - **DEV**: `https://dev.example.com/auth/google/callback`
+   - **PROD**: `https://example.com/auth/google/callback`
 
 ### GitHub OAuth Setup
 1. Go to GitHub Settings → Developer settings → OAuth Apps
 2. Create separate OAuth apps for DEV and PROD
 3. Configure callback URLs:
-   - **DEV**: `https://dev.resumespy.com/auth/github/callback`
-   - **PROD**: `https://resumespy.com/auth/github/callback`
+   - **DEV**: `https://dev.example.com/auth/github/callback`
+   - **PROD**: `https://example.com/auth/github/callback`
 
 **Frontend Integration**: Frontend is responsible for:
 - Initiating OAuth flow
@@ -331,13 +331,13 @@ Use these endpoints to verify environment status:
 
 ```bash
 # Health check
-curl https://api.resumespy.com/health
+curl https://api.example.com/health
 
 # Database connectivity
-curl https://api.resumespy.com/health/db
+curl https://api.example.com/health/db
 
 # Authentication service
-curl https://api.resumespy.com/health/auth
+curl https://api.example.com/health/auth
 ```
 
 ### Logs and Monitoring
