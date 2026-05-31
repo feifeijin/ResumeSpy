@@ -52,17 +52,17 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString);
 });
 
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+// Auth is Supabase JWT; the local ApplicationUser store exists only so
+// IdentityLinkingService can look up / create users by email. AddIdentityCore
+// gives us UserManager without AddIdentity's cookie auth scheme, SignInManager,
+// password-policy surface, or token providers — none of which have a reachable
+// caller and which would otherwise advertise a vestigial password sign-in path.
+builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
-        options.Password.RequireDigit = true;
-        options.Password.RequireLowercase = true;
-        options.Password.RequireUppercase = false;
-        options.Password.RequireNonAlphanumeric = false;
-        options.Password.RequiredLength = 6;
         options.User.RequireUniqueEmail = true;
     })
-    .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddDefaultTokenProviders();
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<ApplicationDbContext>();
 
 // Add services to the container.
 builder.Services.AddControllers();
