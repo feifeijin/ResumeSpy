@@ -254,7 +254,20 @@ if (app.Environment.IsDevelopment())
     dbContext.Database.Migrate();
 }
 
-app.UseRequestResponseLogging(); 
+app.UseRequestResponseLogging();
+
+// Security headers run before the rest of the pipeline so even short-circuited
+// responses (CORS preflight, rate-limit rejections, auth challenges) carry
+// nosniff / frame-deny / CSP. HSTS is production-only because the dev cert is
+// trusted only on localhost and pinning HSTS there would lock developers out
+// of plain-HTTP tools.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+app.UseSecurityHeaders();
+
 // Configure the HTTP request pipeline.
 app.UseCors("AllowSpecificOrigin");
 
