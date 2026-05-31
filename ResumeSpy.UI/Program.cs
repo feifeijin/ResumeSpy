@@ -102,10 +102,13 @@ builder.Services.Configure<AnonymousUserSettings>(builder.Configuration.GetSecti
 var supabaseUrl = builder.Configuration["Supabase:Url"]
     ?? throw new InvalidOperationException("Supabase:Url is not configured.");
 
-// Fetch JWKS from Supabase at startup for ES256 key validation
-using var jwksHttpClient = new HttpClient();
-var jwksJson = jwksHttpClient.GetStringAsync($"{supabaseUrl}/auth/v1/.well-known/jwks.json").GetAwaiter().GetResult();
-var jsonWebKeySet = new JsonWebKeySet(jwksJson);
+// Use the JwtBearer Authority/OIDC discovery to fetch and cache JWKS lazily.
+// The handler refreshes signing keys automatically, so Supabase JWT key
+// rotation no longer requires a backend restart and a Supabase outage at
+// boot no longer crashes the API.
+var supabaseAuthority = $"{supabaseUrl}/auth/v1";
+var requireHttpsMetadata = !builder.Environment.IsDevelopment()
+                           || supabaseAuthority.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
 builder.Services
     .AddAuthentication(options =>
@@ -115,6 +118,8 @@ builder.Services
     })
     .AddJwtBearer(options =>
     {
+        options.Authority = supabaseAuthority;
+        options.RequireHttpsMetadata = requireHttpsMetadata;
         options.SaveToken = true;
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -122,12 +127,11 @@ builder.Services
             ValidateAudience = true,
             ValidateIssuerSigningKey = true,
             ValidateLifetime = true,
-            ValidIssuer = $"{supabaseUrl}/auth/v1",
+            ValidIssuer = supabaseAuthority,
             ValidAudience = "authenticated",
             ClockSkew = TimeSpan.Zero,
             NameClaimType = "sub",
-            RoleClaimType = "role",
-            IssuerSigningKeys = jsonWebKeySet.GetSigningKeys()
+            RoleClaimType = "role"
         };
     });
 
