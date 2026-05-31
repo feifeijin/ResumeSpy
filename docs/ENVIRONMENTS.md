@@ -330,17 +330,41 @@ CORS must be configured per environment to allow frontend access.
 Use these endpoints to verify environment status:
 
 ```bash
-# Health check
+# Liveness — process is up (no dependency checks). Wire your uptime
+# monitor (UptimeRobot, BetterStack, etc.) to this endpoint.
 curl https://api.resumespy.com/health
 
-# Database connectivity
+# Readiness — runs a real query against PostgreSQL. Returns 503 when
+# the DB is unreachable so monitors can distinguish a process that is
+# alive from one that cannot serve requests.
 curl https://api.resumespy.com/health/db
-
-# Authentication service
-curl https://api.resumespy.com/health/auth
 ```
 
+> Auth-provider health is delegated to the JWT bearer middleware, which
+> already auto-refreshes JWKS from the Supabase Authority endpoint. There
+> is no separate `/health/auth` route.
+
 ### Logs and Monitoring
+
+**Error tracking (Sentry)**:
+Set `SENTRY_DSN` in the runtime environment (or `Sentry:Dsn` in
+configuration) to enable Sentry. When the DSN is empty the SDK runs in
+a no-op mode, so local development requires no setup. Trace sampling is
+controlled by `Sentry:TracesSampleRate` (default `0.1`). See
+[Sentry .NET docs](https://docs.sentry.io/platforms/dotnet/guides/aspnetcore/)
+for alert and quota configuration.
+
+**Uptime monitoring**:
+Point an external monitor (UptimeRobot, BetterStack, Pingdom, etc.) at
+`/health` for liveness and `/health/db` for readiness. Configure pages
+to fire when `/health/db` returns non-200 so a DB outage pages the
+on-call rather than surfacing through user reports.
+
+**OpenAI spend cap**:
+The application-level rate limiter caps request volume, but it does not
+cap dollar spend. Set a hard monthly **usage limit** and a lower
+**billing alert** in the OpenAI billing dashboard so a quota anomaly
+cannot run up an unbounded bill before someone notices.
 
 **DEV Environment**:
 ```bash
@@ -352,8 +376,9 @@ az webapp log download --name resumespy-dev --resource-group resumespy
 ```
 
 **PROD Environment**:
-- Use centralized logging (Application Insights, CloudWatch, etc.)
-- Set up alerts for critical errors
+- Sentry receives exceptions and is the primary error-tracking surface
+- Use centralized logging (Application Insights, CloudWatch, etc.) for request logs
+- Set up Sentry alert rules for error-rate spikes and new issue types
 - Monitor authentication failure rates
 - Track API response times
 

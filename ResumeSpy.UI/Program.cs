@@ -2,9 +2,11 @@ using System;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using ResumeSpy.Infrastructure.Data;
@@ -19,6 +21,20 @@ using ResumeSpy.UI.Swagger;
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Sentry error tracking. DSN is read from the SENTRY_DSN env var (preferred in
+// hosted environments) with a fallback to the "Sentry:Dsn" config key. When
+// the DSN is empty the SDK initialises in a no-op mode, so local development
+// runs without sending events.
+builder.WebHost.UseSentry(options =>
+{
+    options.Dsn = Environment.GetEnvironmentVariable("SENTRY_DSN")
+                  ?? builder.Configuration["Sentry:Dsn"]
+                  ?? string.Empty;
+    options.Environment = builder.Environment.EnvironmentName;
+    options.TracesSampleRate = builder.Configuration.GetValue<double?>("Sentry:TracesSampleRate") ?? 0.1;
+    options.SendDefaultPii = false;
+});
 
 var envConnection = Environment.GetEnvironmentVariable("DB_CONNECTION");
 var connectionString = !string.IsNullOrEmpty(envConnection)
@@ -88,6 +104,16 @@ builder.Services.RegisterService();
 
 // Add caching services
 builder.Services.AddMemoryCache();
+
+// Health checks: `/health` is a cheap liveness probe (no dependencies) for
+// uptime monitors, while `/health/db` runs a real `SELECT 1`-equivalent
+// against PostgreSQL so a DB outage is detected by alerting rather than by
+// failing user requests.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<ApplicationDbContext>(
+        name: "database",
+        failureStatus: HealthStatus.Unhealthy,
+        tags: new[] { "db", "ready" });
 
 // Register ILogger service
 builder.Services.AddLogging();
@@ -254,7 +280,18 @@ app.MapControllers();
 
 app.MapGet("/", () => Results.Ok(new { service = "ResumeSpy API", status = "ok" }));
 
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+// Liveness: no dependency checks — confirms only that the process is up.
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => false
+});
+
+// Readiness: includes the DB check so monitors can distinguish a process
+// that is up from one that can actually serve requests.
+app.MapHealthChecks("/health/db", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("db")
+});
 
 app.Run();
 
