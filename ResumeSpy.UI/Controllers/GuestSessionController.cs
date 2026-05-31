@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ResumeSpy.Core.Entities.General;
 using ResumeSpy.Core.Interfaces.IServices;
@@ -7,6 +8,7 @@ namespace ResumeSpy.UI.Controllers
 {
     [ApiController]
     [Route("api/guest-session")]
+    [AllowAnonymous]
     public class GuestSessionController : ControllerBase
     {
         private readonly IGuestSessionService _guestSessionService;

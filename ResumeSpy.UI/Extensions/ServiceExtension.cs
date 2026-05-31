@@ -168,10 +168,12 @@ namespace ResumeSpy.UI.Extensions
             options.Retry.UseJitter = true;
             options.Retry.Delay = TimeSpan.FromMilliseconds(500);
 
-            // Circuit breaker: if >50% of requests fail in a 30s window (with at
+            // Circuit breaker: if >50% of requests fail in a 60s window (with at
             // least 10 samples), break for 30s. Prevents pile-ups when the upstream
-            // is genuinely down and lets the AIOrchestrator fall back faster.
-            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+            // is genuinely down and lets the AIOrchestrator fall back faster. The
+            // sampling window must be at least double AttemptTimeout (30s) to satisfy
+            // the resilience handler's startup validation.
+            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(60);
             options.CircuitBreaker.FailureRatio = 0.5;
             options.CircuitBreaker.MinimumThroughput = 10;
             options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
