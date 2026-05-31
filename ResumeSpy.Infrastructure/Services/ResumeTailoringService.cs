@@ -35,7 +35,12 @@ namespace ResumeSpy.Infrastructure.Services
 
             _logger.LogInformation("Starting AI resume tailoring for language: {Language}", language ?? "unspecified");
 
-            var response = await _aiOrchestrator.ExecuteTextGenerationAsync(request, useCache: false);
+            // Cache is keyed on the full prompt hash, which embeds both the resume
+            // content and the JD verbatim. Identical (resume, JD) pairs therefore
+            // hit cache and skip a paid OpenAI / HuggingFace call — repeat
+            // tailorings of the same resume against the same JD are common when
+            // users iterate on the output.
+            var response = await _aiOrchestrator.ExecuteTextGenerationAsync(request, useCache: true);
 
             if (!response.IsSuccess || string.IsNullOrWhiteSpace(response.Content))
             {

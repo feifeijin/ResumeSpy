@@ -8,7 +8,7 @@ I've successfully implemented an AI translation service for your ResumeSpy codeb
 
 ### 1. Extended Translation Configuration
 - **Added `AI` to `TranslatorType` enum** (Microsoft, DeepL, Libre, **AI**)
-- **Added `AITranslatorSettings`** with options for preferred provider, fallback chain, and default context
+- **Added `AITranslatorSettings`** carrying the resume-domain context string. Provider selection and the fallback chain are owned by the top-level `AI` config section — `AI:DefaultTextProvider` and `AI:TextProviderFallbackChain` — so there is one place to change the provider, not two.
 
 ### 2. Moved AI Services to Infrastructure
 - **Relocated `AIOrchestratorService`** from `Core/Services` → `Infrastructure/Services/AI`
@@ -30,11 +30,13 @@ Set `TranslatorType` to `"AI"` in `appsettings.json`:
 
 ```json
 {
+  "AI": {
+    "DefaultTextProvider": "HuggingFace",
+    "TextProviderFallbackChain": "HuggingFace,OpenAI"
+  },
   "TranslatorSettings": {
     "TranslatorType": "AI",
     "AI": {
-      "PreferredProvider": "OpenAI",
-      "UseFallbackChain": true,
       "DefaultContext": "This is a professional resume document. Please maintain formal language and technical accuracy."
     }
   }
