@@ -218,24 +218,27 @@ app.UseCors("AllowSpecificOrigin");
 app.UseStaticFiles(); // Serve static files from wwwroot
 app.UseHttpsRedirection();
 
-app.UseSwagger();
-app.UseSwaggerUI(options =>
+if (app.Environment.IsDevelopment())
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "ResumeSpy API v1");
-    options.DocumentTitle = "ResumeSpy API Documentation";
-});
-
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path.Equals("/", StringComparison.OrdinalIgnoreCase) ||
-        context.Request.Path.Equals("/swagger.html", StringComparison.OrdinalIgnoreCase))
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
     {
-        context.Response.Redirect("/swagger/index.html", permanent: false);
-        return;
-    }
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "ResumeSpy API v1");
+        options.DocumentTitle = "ResumeSpy API Documentation";
+    });
 
-    await next();
-});
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.Equals("/", StringComparison.OrdinalIgnoreCase) ||
+            context.Request.Path.Equals("/swagger.html", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Response.Redirect("/swagger/index.html", permanent: false);
+            return;
+        }
+
+        await next();
+    });
+}
 
 app.UseAuthentication();
 app.UseEnsureLocalUser();
@@ -244,6 +247,8 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapControllers();
+
+app.MapGet("/", () => Results.Ok(new { service = "ResumeSpy API", status = "ok" }));
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
