@@ -14,6 +14,8 @@ using ResumeSpy.Infrastructure.Services.AI;
 using ResumeSpy.Infrastructure.Repositories;
 using ResumeSpy.Infrastructure.Services;
 using ResumeSpy.Infrastructure.Services.Translation;
+using ResumeSpy.UI.Filters;
+using ResumeSpy.UI.Services;
 
 namespace ResumeSpy.UI.Extensions
 {
@@ -50,6 +52,11 @@ namespace ResumeSpy.UI.Extensions
 
             // Translation Services
             services.AddScoped<ITranslationService, TranslationService>();
+
+            // AI quota + access filter for import / chat / tailor endpoints.
+            // Singleton because the in-memory counter must be shared across requests.
+            services.AddSingleton<IAiQuotaService, InMemoryAiQuotaService>();
+            services.AddScoped<AiAccessFilter>();
 
             #endregion
 

@@ -1,7 +1,9 @@
 using System;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -131,6 +133,42 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// Per-IP-or-identity rate limiter for AI endpoints. The "ai" policy is applied
+// to import / chat / tailor via [EnableRateLimiting("ai")]. Caps requests at
+// 10 per minute per identity to make cost-DoS via the upstream HuggingFace /
+// OpenAI quota impractical.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsync(
+            "{\"error\":\"Too many AI requests. Please slow down and try again shortly.\"}",
+            token);
+    };
+
+    options.AddPolicy("ai", httpContext =>
+    {
+        // Prefer identity over IP so that a single user behind a shared NAT
+        // is not collectively throttled. Falls back to remote IP for the
+        // (now blocked at the filter level) no-identity case.
+        var key = httpContext.GetEffectiveUserId()
+                  ?? httpContext.GetAnonymousUserId()?.ToString()
+                  ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                  ?? "unknown";
+
+        return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            AutoReplenishment = true
+        });
+    });
+});
+
 // Add CORS services
 builder.Services.AddCors(options =>
 {
@@ -203,6 +241,7 @@ app.UseAuthentication();
 app.UseEnsureLocalUser();
 app.UseAnonymousUserMiddleware();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 
