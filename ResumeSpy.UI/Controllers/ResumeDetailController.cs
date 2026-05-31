@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Caching.Memory;
 using ResumeSpy.Core.Entities.Business;
 using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.IServices;
+using ResumeSpy.UI.Filters;
 using ResumeSpy.UI.Middlewares;
 using ResumeSpy.UI.Models;
 using System.Security.Claims;
@@ -268,6 +270,8 @@ namespace ResumeSpy.UI.Controllers
         }
 
         [HttpPost("{id}/tailor")]
+        [EnableRateLimiting("ai")]
+        [ServiceFilter(typeof(AiAccessFilter))]
         public async Task<ActionResult<object>> TailorResumeDetailAsync(string id, [FromBody] TailorRequest request)
         {
             var detail = await _resumeDetailService.GetResumeDetail(id);

@@ -1,10 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ResumeSpy.Core.Interfaces.IServices;
+using ResumeSpy.UI.Filters;
 
 namespace ResumeSpy.UI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [EnableRateLimiting("ai")]
+    [ServiceFilter(typeof(AiAccessFilter))]
     public class ResumeImportController : ControllerBase
     {
         // Reasonable upper-bound for file extraction + AI processing, even for large
