@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using ResumeSpy.Infrastructure.Data;
+using ResumeSpy.UI.Authorization;
 using ResumeSpy.UI.Extensions;
 using ResumeSpy.UI.Middlewares;
 using ResumeSpy.Infrastructure.Configuration;
@@ -161,7 +163,18 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+// Global FallbackPolicy: every endpoint requires either an authenticated
+// principal or an anonymous-user GUID (resolved by AnonymousUserMiddleware).
+// Endpoints that must remain open use [AllowAnonymous]. This closes the IDOR
+// hole where a new controller could ship without its hand-rolled identity
+// check and silently expose data to unauthenticated callers.
+builder.Services.AddSingleton<IAuthorizationHandler, IdentifiedUserAuthorizationHandler>();
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .AddRequirements(new IdentifiedUserRequirement())
+        .Build();
+});
 
 // Per-IP-or-identity rate limiter for AI endpoints. The "ai" policy is applied
 // to import / chat / tailor via [EnableRateLimiting("ai")]. Caps requests at
@@ -278,20 +291,21 @@ app.UseRateLimiter();
 
 app.MapControllers();
 
-app.MapGet("/", () => Results.Ok(new { service = "ResumeSpy API", status = "ok" }));
+app.MapGet("/", () => Results.Ok(new { service = "ResumeSpy API", status = "ok" }))
+    .AllowAnonymous();
 
 // Liveness: no dependency checks — confirms only that the process is up.
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     Predicate = _ => false
-});
+}).AllowAnonymous();
 
 // Readiness: includes the DB check so monitors can distinguish a process
 // that is up from one that can actually serve requests.
 app.MapHealthChecks("/health/db", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("db")
-});
+}).AllowAnonymous();
 
 app.Run();
 

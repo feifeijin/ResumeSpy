@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using ResumeSpy.Core.Interfaces.IServices;
@@ -9,6 +10,7 @@ namespace ResumeSpy.UI.Controllers
 {
     [ApiController]
     [Route("api/anonymous-user")]
+    [AllowAnonymous]
     public class AnonymousUserController : ControllerBase
     {
         private readonly IAnonymousUserService _anonymousUserService;
