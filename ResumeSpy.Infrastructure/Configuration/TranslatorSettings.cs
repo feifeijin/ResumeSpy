@@ -30,17 +30,11 @@ namespace ResumeSpy.Infrastructure.Configuration
     public class AITranslatorSettings
     {
         /// <summary>
-        /// AI provider to use for translation (defaults to configured AI provider chain)
-        /// </summary>
-        public string? PreferredProvider { get; set; }
-
-        /// <summary>
-        /// Whether to use AI orchestrator's fallback chain
-        /// </summary>
-        public bool UseFallbackChain { get; set; } = true;
-
-        /// <summary>
-        /// Context to provide for better translation quality
+        /// Context to provide for better translation quality. Provider selection
+        /// and fallback chain are owned by the top-level <c>AI</c> config section
+        /// (see <c>AI:DefaultTextProvider</c> / <c>AI:TextProviderFallbackChain</c>);
+        /// translator-side overrides would just re-introduce the inconsistency
+        /// that issue #36 cleaned up.
         /// </summary>
         public string? DefaultContext { get; set; }
     }

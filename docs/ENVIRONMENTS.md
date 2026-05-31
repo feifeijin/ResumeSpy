@@ -361,10 +361,28 @@ to fire when `/health/db` returns non-200 so a DB outage pages the
 on-call rather than surfacing through user reports.
 
 **OpenAI spend cap**:
-The application-level rate limiter caps request volume, but it does not
-cap dollar spend. Set a hard monthly **usage limit** and a lower
-**billing alert** in the OpenAI billing dashboard so a quota anomaly
-cannot run up an unbounded bill before someone notices.
+Two layers of defence:
+
+1. **In-process daily cap** — `AI:OpenAI:MaxDailySpendUsd` (default `5.00`
+   from `appsettings.json`; override via the `AI__OpenAI__MaxDailySpendUsd`
+   env var). When the running per-UTC-day total reaches the cap, the
+   OpenAI provider short-circuits with a failure response so the
+   orchestrator falls through to the next provider (or fails cleanly when
+   OpenAI is last in the chain). Counter resets at UTC midnight. Set to
+   `0` to disable. The counter is per-process and in-memory, so multi-
+   instance deployments get `instances × cap` headroom — size accordingly.
+2. **Provider-level** — set a hard monthly **usage limit** and a lower
+   **billing alert** in the OpenAI billing dashboard so a quota anomaly
+   cannot run up an unbounded bill before someone notices, even if the
+   in-process cap is bypassed (env mis-set, multi-instance fan-out, etc.).
+
+`AI:OpenAI:ApiKey` and `AI:OpenAI:Endpoint` are intentionally blank in
+`appsettings.json`; inject them in DEV/PROD via the
+`AI__OpenAI__ApiKey` / `AI__OpenAI__Endpoint` env vars. If they are
+unset the OpenAI provider throws on first use, which surfaces in logs as
+"OpenAI API key not configured" — the HuggingFace provider continues to
+serve, but once its free quota is hit the orchestrator returns "all
+providers failed" with no AI fallback.
 
 **DEV Environment**:
 ```bash

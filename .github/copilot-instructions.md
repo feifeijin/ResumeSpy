@@ -98,12 +98,11 @@ PostgreSQL connection in `appsettings.json`:
 ```
 
 ### Translation Configuration
+Provider selection lives in the top-level `AI` section (`DefaultTextProvider` / `TextProviderFallbackChain`); the translator block only carries the resume-domain context string.
 ```json
 "TranslatorSettings": {
   "TranslatorType": "AI",
   "AI": {
-    "PreferredProvider": "OpenAI",
-    "UseFallbackChain": true,
     "DefaultContext": "Professional resume context..."
   }
 }
