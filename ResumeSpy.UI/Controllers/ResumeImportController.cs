@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.UI.Filters;
 
@@ -75,6 +76,14 @@ namespace ResumeSpy.UI.Controllers
             catch (NotSupportedException ex)
             {
                 return BadRequest(new { error = ex.Message });
+            }
+            catch (AiServiceUnavailableException ex)
+            {
+                // All AI providers exhausted retries / opened their circuit. Surface
+                // a graceful 503 so the client can prompt the user to try again
+                // instead of treating it as a generic server bug.
+                _logger.LogWarning(ex, "AI provider chain unavailable during import");
+                return StatusCode(503, new { error = "AI service is temporarily unavailable. Please try again in a moment." });
             }
             catch (InvalidOperationException ex)
             {

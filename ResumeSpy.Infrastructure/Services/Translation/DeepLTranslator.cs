@@ -23,7 +23,10 @@ namespace ResumeSpy.Infrastructure.Services.Translation
 
         public override async Task<string> TranslateAsync(string text, string sourceLanguage, string targetLanguage)
         {
-            var client = new HttpClient();
+            // Use the injected HttpClient (named "Translation") so DeepL calls flow
+            // through the resilience handler — retries, circuit breaker, timeouts —
+            // configured in ServiceExtension. A `new HttpClient()` here would bypass
+            // all of it and also leak sockets.
             var request = new HttpRequestMessage(HttpMethod.Post, _endpoint);
             request.Headers.Add("Accept", "application/json");
             request.Headers.Add("Authorization", $"DeepL-Auth-Key {_apiKey}");
@@ -35,7 +38,7 @@ namespace ResumeSpy.Infrastructure.Services.Translation
             };
             var content = new FormUrlEncodedContent(collection);
             request.Content = content;
-            var response = await client.SendAsync(request);
+            var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
             var responseBody = await response.Content.ReadAsStringAsync();
 

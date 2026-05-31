@@ -8,12 +8,19 @@ namespace ResumeSpy.Infrastructure.Services.Translation
 {
     internal class TranslatorFactory
     {
+        /// <summary>
+        /// Name of the HttpClient configured with the standard outbound resilience
+        /// handler (retries + circuit breaker + timeouts). All translation providers
+        /// resolve their HttpClient by this name so they inherit that protection.
+        /// </summary>
+        public const string HttpClientName = "Translation";
+
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly TranslatorSettings _translatorSettings;
         private readonly AIOrchestratorService? _aiOrchestrator;
 
         public TranslatorFactory(
-            IHttpClientFactory httpClientFactory, 
+            IHttpClientFactory httpClientFactory,
             IOptions<TranslatorSettings> translatorSettings,
             AIOrchestratorService? aiOrchestrator = null)
         {
@@ -24,7 +31,7 @@ namespace ResumeSpy.Infrastructure.Services.Translation
 
         public ITranslator CreateTranslator()
         {
-            var httpClient = _httpClientFactory.CreateClient();
+            var httpClient = _httpClientFactory.CreateClient(HttpClientName);
 
             return _translatorSettings.TranslatorType switch
             {

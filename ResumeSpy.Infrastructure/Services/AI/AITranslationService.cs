@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using ResumeSpy.Core.AI;
+using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.AI;
 using ResumeSpy.Infrastructure.Prompts;
 
@@ -45,7 +46,7 @@ namespace ResumeSpy.Infrastructure.Services.AI
             if (!response.IsSuccess)
             {
                 _logger.LogError("Translation failed: {Error}", response.ErrorMessage);
-                throw new Exception($"Translation failed: {response.ErrorMessage}");
+                throw new AiServiceUnavailableException($"Translation failed: {response.ErrorMessage}");
             }
 
             return response.Content.Trim();
@@ -73,7 +74,7 @@ namespace ResumeSpy.Infrastructure.Services.AI
             if (!response.IsSuccess)
             {
                 _logger.LogError("Language detection failed: {Error}", response.ErrorMessage);
-                throw new Exception($"Language detection failed: {response.ErrorMessage}");
+                throw new AiServiceUnavailableException($"Language detection failed: {response.ErrorMessage}");
             }
 
             return response.Content.Trim().ToLowerInvariant();

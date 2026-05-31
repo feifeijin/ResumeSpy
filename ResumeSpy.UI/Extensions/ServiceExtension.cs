@@ -1,5 +1,7 @@
 ﻿using AutoMapper;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
+using Polly;
 using ResumeSpy.Core.Entities.Business;
 using ResumeSpy.Core.Entities.General;
 using ResumeSpy.Core.Interfaces.AI;
@@ -42,7 +44,16 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IResumeService, ResumeService>();
             services.AddScoped<IResumeDetailService, ResumeDetailService>();
             services.AddScoped<IResumeManagementService, ResumeManagementService>();
-            services.AddHttpClient<IImageGenerationService, ImageGenerationService>();
+            // Supabase Storage uploads / deletes go through this typed client. The
+            // standard resilience handler adds bounded retries, a circuit breaker
+            // that protects us if Supabase Storage goes down, and explicit per-attempt
+            // and total-request timeouts so a hung upload cannot tie up a request
+            // for minutes on end.
+            services.AddHttpClient<IImageGenerationService, ImageGenerationService>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(60);
+            })
+            .AddStandardResilienceHandler(AddStorageResilience);
             services.AddScoped<IAnonymousUserService, AnonymousUserService>();
             services.AddScoped<IPdfExportService, PdfExportService>();
             services.AddScoped<IResumeTailoringService, ResumeTailoringService>();
@@ -50,7 +61,18 @@ namespace ResumeSpy.UI.Extensions
             services.AddScoped<IResumeVersionService, ResumeVersionService>();
             services.AddScoped<IResumeChatService, ResumeChatService>();
 
-            // Translation Services
+            // Translation Services. A named HttpClient ("Translation") routes through
+            // the same resilience handler as the AI providers — translation endpoints
+            // (DeepL / Microsoft / Libre) are themselves third-party calls that
+            // periodically blip, and a transient 502 should not fail the user's request.
+            services.AddHttpClient(TranslatorFactory.HttpClientName, client =>
+            {
+                // Generous HttpClient ceiling: the resilience handler's TotalRequestTimeout
+                // (90 s, incl. retries) is the real deadline. HttpClient.Timeout must sit
+                // above it or it will pre-empt the retry budget.
+                client.Timeout = TimeSpan.FromSeconds(120);
+            })
+            .AddStandardResilienceHandler(AddOutboundResilience);
             services.AddScoped<ITranslationService, TranslationService>();
 
             // AI quota + access filter for import / chat / tailor endpoints.
@@ -63,12 +85,19 @@ namespace ResumeSpy.UI.Extensions
             #region AI Services
             // Register AI providers with keyed services.
             // HuggingFace uses a named HttpClient so we can configure a request timeout
-            // independently of the default client. A 30-second ceiling prevents free-tier
-            // latency spikes from hanging the request indefinitely.
+            // independently of the default client. The standard resilience handler adds
+            // bounded retries, a circuit breaker (so a sustained HuggingFace outage stops
+            // wasting time on doomed calls and the orchestrator falls through to the next
+            // provider faster), and per-attempt + total-request timeouts. The 30-second
+            // HttpClient.Timeout is kept as a final safety net.
             services.AddHttpClient("HuggingFace", client =>
             {
-                client.Timeout = TimeSpan.FromSeconds(30);
-            });
+                // See TranslatorFactory.HttpClientName registration: HttpClient.Timeout
+                // sits above the resilience handler's TotalRequestTimeout so the
+                // retry budget is not cut short.
+                client.Timeout = TimeSpan.FromSeconds(120);
+            })
+            .AddStandardResilienceHandler(AddOutboundResilience);
             services.AddKeyedSingleton<IGenerativeTextService, OpenAITextService>("OpenAI");
             services.AddKeyedSingleton<IGenerativeTextService>("HuggingFace", (sp, _) =>
             {
@@ -114,6 +143,59 @@ namespace ResumeSpy.UI.Extensions
             #endregion
 
             return services;
+        }
+
+        /// <summary>
+        /// Resilience profile for outbound AI / translation HTTP calls. Both classes
+        /// of upstream are flaky (free-tier rate-limits, model cold-starts, occasional
+        /// 502s), so a small retry budget plus a circuit breaker keeps a single bad
+        /// minute from cascading into user-facing failures, while the total timeout
+        /// caps the worst-case wall-clock latency a caller can experience.
+        /// </summary>
+        private static void AddOutboundResilience(HttpStandardResilienceOptions options)
+        {
+            // Cap the entire pipeline (incl. retries) at 90s. The HuggingFace import
+            // path is also fenced by a 120s request-level deadline in
+            // ResumeImportController, so the per-HTTP-attempt budget stays below it.
+            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(90);
+            options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(30);
+
+            // 3 retries with jittered exponential backoff. Defaults retry only on
+            // transient HttpRequestException / 5xx / 408, which is what we want —
+            // do NOT retry on 4xx (auth / quota) since that would just burn quota.
+            options.Retry.MaxRetryAttempts = 3;
+            options.Retry.BackoffType = DelayBackoffType.Exponential;
+            options.Retry.UseJitter = true;
+            options.Retry.Delay = TimeSpan.FromMilliseconds(500);
+
+            // Circuit breaker: if >50% of requests fail in a 30s window (with at
+            // least 10 samples), break for 30s. Prevents pile-ups when the upstream
+            // is genuinely down and lets the AIOrchestrator fall back faster.
+            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+            options.CircuitBreaker.FailureRatio = 0.5;
+            options.CircuitBreaker.MinimumThroughput = 10;
+            options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
+        }
+
+        /// <summary>
+        /// Resilience profile for Supabase Storage. Tighter than the AI profile
+        /// because storage round-trips should be sub-second and we don't want the
+        /// thumbnail-upload background work to monopolise a worker for long.
+        /// </summary>
+        private static void AddStorageResilience(HttpStandardResilienceOptions options)
+        {
+            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(30);
+            options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(10);
+
+            options.Retry.MaxRetryAttempts = 3;
+            options.Retry.BackoffType = DelayBackoffType.Exponential;
+            options.Retry.UseJitter = true;
+            options.Retry.Delay = TimeSpan.FromMilliseconds(200);
+
+            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+            options.CircuitBreaker.FailureRatio = 0.5;
+            options.CircuitBreaker.MinimumThroughput = 10;
+            options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
         }
     }
 }

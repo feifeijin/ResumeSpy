@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.UI.Filters;
 
@@ -50,6 +51,11 @@ namespace ResumeSpy.UI.Controllers
                         Multiple = result.Options.Multiple
                     }
                 });
+            }
+            catch (AiServiceUnavailableException ex)
+            {
+                _logger.LogWarning(ex, "AI provider chain unavailable during chat");
+                return StatusCode(503, new { error = "The detective is momentarily unavailable. Please try again in a moment." });
             }
             catch (Exception ex)
             {

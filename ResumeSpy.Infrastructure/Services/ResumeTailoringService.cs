@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using ResumeSpy.Core.AI;
+using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.Infrastructure.Prompts;
 using ResumeSpy.Infrastructure.Services.AI;
@@ -39,7 +40,7 @@ namespace ResumeSpy.Infrastructure.Services
             if (!response.IsSuccess || string.IsNullOrWhiteSpace(response.Content))
             {
                 _logger.LogError("AI tailoring failed: {Error}", response.ErrorMessage);
-                throw new InvalidOperationException($"AI tailoring failed: {response.ErrorMessage}");
+                throw new AiServiceUnavailableException($"AI tailoring failed: {response.ErrorMessage}");
             }
 
             _logger.LogInformation("AI tailoring succeeded via {Provider}", response.ProviderName);
