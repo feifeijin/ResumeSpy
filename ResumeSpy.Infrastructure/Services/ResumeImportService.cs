@@ -1,6 +1,7 @@
 using DocumentFormat.OpenXml.Packaging;
 using Microsoft.Extensions.Logging;
 using ResumeSpy.Core.AI;
+using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.Infrastructure.Prompts;
 using ResumeSpy.Infrastructure.Services.AI;
@@ -223,7 +224,7 @@ namespace ResumeSpy.Infrastructure.Services
             }, useCache: true, cancellationToken: cancellationToken);
 
             if (!response.IsSuccess || string.IsNullOrWhiteSpace(response.Content))
-                throw new InvalidOperationException($"AI conversion failed: {response.ErrorMessage}");
+                throw new AiServiceUnavailableException($"AI conversion failed: {response.ErrorMessage}");
 
             var content = response.Content.Trim();
 

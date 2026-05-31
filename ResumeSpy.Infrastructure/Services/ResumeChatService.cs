@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ResumeSpy.Core.AI;
+using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.Infrastructure.Prompts;
 using ResumeSpy.Infrastructure.Services.AI;
@@ -40,7 +41,7 @@ namespace ResumeSpy.Infrastructure.Services
             if (!response.IsSuccess || string.IsNullOrWhiteSpace(response.Content))
             {
                 _logger.LogError("Chat AI call failed: {Error}", response.ErrorMessage);
-                throw new InvalidOperationException($"Chat failed: {response.ErrorMessage}");
+                throw new AiServiceUnavailableException($"Chat failed: {response.ErrorMessage}");
             }
 
             return ParseResponse(response.Content);

@@ -298,6 +298,11 @@ namespace ResumeSpy.UI.Controllers
 
                 return Ok(new { content = tailoredContent });
             }
+            catch (AiServiceUnavailableException ex)
+            {
+                _logger.LogWarning(ex, "AI provider chain unavailable during tailoring for detail {Id}", id);
+                return StatusCode(503, new { error = "AI service is temporarily unavailable. Please try again in a moment." });
+            }
             catch (InvalidOperationException ex)
             {
                 _logger.LogError(ex, "AI tailoring failed for detail {Id}", id);
