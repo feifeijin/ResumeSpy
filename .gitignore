@@ -17,8 +17,8 @@ Scripts/LocalDev/
 *.env
 !.env.example
 
-# Production config (secrets injected at deploy time)
-ResumeSpy.UI/appsettings.Production.json
+# Production secrets are injected at deploy time via environment variables.
+# appsettings.Production.json is tracked for non-secret config (e.g. log levels).
 
 # Local/Dev environment files
 .env.local
