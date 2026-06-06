@@ -1,4 +1,4 @@
-﻿namespace ResumeSpy.UI.Middlewares
+namespace ResumeSpy.UI.Middlewares
 {
     using Microsoft.AspNetCore.Builder;
     using Microsoft.AspNetCore.Http;
@@ -7,6 +7,16 @@
 
     public class RequestResponseLoggingMiddleware
     {
+        // Headers that carry credentials or session tokens and must never appear in logs.
+        private static readonly HashSet<string> SensitiveHeaders = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Authorization",
+            "Cookie",
+            "Set-Cookie",
+            "X-API-Key",
+            "X-Auth-Token",
+        };
+
         private readonly RequestDelegate _next;
         private readonly ILogger<RequestResponseLoggingMiddleware> _logger;
 
@@ -18,37 +28,32 @@
 
         public async Task Invoke(HttpContext context)
         {
-            // Log the incoming request
             LogRequest(context.Request);
-
-
-            // Call the next middleware in the pipeline
             await _next(context);
-
-            // Log the outgoing response
             LogResponse(context.Response);
         }
 
         private void LogRequest(HttpRequest request)
         {
-            _logger.LogInformation($"Request received: {request.Method} {request.Path}");
-            _logger.LogInformation($"Request headers: {GetHeadersAsString(request.Headers)}");
+            _logger.LogInformation("Request: {Method} {Path}", request.Method, request.Path);
+            _logger.LogDebug("Request headers: {Headers}", GetHeadersAsString(request.Headers));
         }
 
         private void LogResponse(HttpResponse response)
         {
-            _logger.LogInformation($"Response sent: {response.StatusCode}");
-            _logger.LogInformation($"Response headers: {GetHeadersAsString(response.Headers)}");
+            _logger.LogInformation("Response: {StatusCode}", response.StatusCode);
+            _logger.LogDebug("Response headers: {Headers}", GetHeadersAsString(response.Headers));
         }
 
-        private string GetHeadersAsString(IHeaderDictionary headers)
+        private static string GetHeadersAsString(IHeaderDictionary headers)
         {
-            var stringBuilder = new StringBuilder();
+            var sb = new StringBuilder();
             foreach (var (key, value) in headers)
             {
-                stringBuilder.AppendLine($"{key}: {value}");
+                var displayValue = SensitiveHeaders.Contains(key) ? "[REDACTED]" : value.ToString();
+                sb.AppendLine($"{key}: {displayValue}");
             }
-            return stringBuilder.ToString();
+            return sb.ToString();
         }
     }
 
@@ -60,5 +65,4 @@
             return builder.UseMiddleware<RequestResponseLoggingMiddleware>();
         }
     }
-
 }
