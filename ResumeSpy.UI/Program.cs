@@ -13,6 +13,7 @@ using Microsoft.OpenApi.Models;
 using ResumeSpy.Infrastructure.Data;
 using ResumeSpy.UI.Authorization;
 using ResumeSpy.UI.Extensions;
+using ResumeSpy.UI.HealthChecks;
 using ResumeSpy.UI.Middlewares;
 using ResumeSpy.Infrastructure.Configuration;
 using ResumeSpy.Core.Entities.General;
@@ -107,15 +108,27 @@ builder.Services.RegisterService();
 // Add caching services
 builder.Services.AddMemoryCache();
 
-// Health checks: `/health` is a cheap liveness probe (no dependencies) for
-// uptime monitors, while `/health/db` runs a real `SELECT 1`-equivalent
-// against PostgreSQL so a DB outage is detected by alerting rather than by
-// failing user requests.
+// Short-lived HTTP client used exclusively by SupabaseAuthHealthCheck.
+// Kept separate from the regular IHttpClientFactory clients so a slow
+// Supabase OIDC response does not interfere with production traffic.
+builder.Services.AddHttpClient("SupabaseHealth", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+
+// Health checks:
+//   /health     – liveness (no dependencies)
+//   /health/db  – readiness: DB connectivity
+//   /health/auth – readiness: Supabase OIDC connectivity (JWT validation prerequisite)
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<ApplicationDbContext>(
         name: "database",
         failureStatus: HealthStatus.Unhealthy,
-        tags: new[] { "db", "ready" });
+        tags: new[] { "db", "ready" })
+    .AddCheck<SupabaseAuthHealthCheck>(
+        name: "supabase-auth",
+        failureStatus: HealthStatus.Degraded,
+        tags: new[] { "auth", "ready" });
 
 // Register ILogger service
 builder.Services.AddLogging();
@@ -132,6 +145,14 @@ if (string.IsNullOrWhiteSpace(supabaseUrl))
     throw new InvalidOperationException(
         "Supabase:Url is not configured. Set the SUPABASE_URL environment variable.");
 supabaseUrl = supabaseUrl.TrimEnd('/');
+
+// Reject obviously malformed URLs (e.g. missing scheme, non-HTTP/HTTPS) before they
+// produce a cryptic "issuer mismatch" 401 at runtime.
+if (!Uri.TryCreate(supabaseUrl, UriKind.Absolute, out var supabaseUri) ||
+    supabaseUri.Scheme is not ("http" or "https"))
+    throw new InvalidOperationException(
+        $"Supabase:Url '{supabaseUrl}' is not a valid absolute URL. " +
+        "Expected format: https://<project-ref>.supabase.co");
 
 // Use the JwtBearer Authority/OIDC discovery to fetch and cache JWKS lazily.
 // The handler refreshes signing keys automatically, so Supabase JWT key
@@ -163,6 +184,47 @@ builder.Services
             ClockSkew = TimeSpan.Zero,
             NameClaimType = "sub",
             RoleClaimType = "role"
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            // Log the specific failure reason so admins can distinguish
+            // "Supabase URL wrong" (issuer mismatch) from "token expired"
+            // from "OIDC discovery endpoint unreachable" without digging into
+            // framework internals.
+            OnAuthenticationFailed = ctx =>
+            {
+                var log = ctx.HttpContext.RequestServices
+                    .GetRequiredService<ILogger<Program>>();
+                log.LogWarning(ctx.Exception,
+                    "Supabase JWT validation failed ({ExceptionType}). " +
+                    "Verify SUPABASE_URL matches your project and the JWT issuer is {Authority}.",
+                    ctx.Exception.GetType().Name,
+                    supabaseAuthority);
+                return Task.CompletedTask;
+            },
+
+            // Return a structured JSON 401 so the frontend (and developers)
+            // can tell our auth failure apart from a Supabase-side error.
+            // Supabase GoTrue errors use {"code":5xx,"error_code":...}; ours
+            // use {"succeeded":false,"error":"unauthorized","message":"..."}.
+            OnChallenge = async ctx =>
+            {
+                ctx.HandleResponse();
+                ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                ctx.Response.ContentType = "application/json";
+
+                var message = ctx.AuthenticateFailure is not null
+                    ? $"JWT validation failed: {ctx.AuthenticateFailure.Message}"
+                    : "Authentication required. Provide a valid Supabase access token.";
+
+                await ctx.Response.WriteAsJsonAsync(new
+                {
+                    succeeded = false,
+                    error = "unauthorized",
+                    message
+                });
+            }
         };
     });
 
@@ -321,6 +383,13 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 app.MapHealthChecks("/health/db", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("db")
+}).AllowAnonymous();
+
+// Auth readiness: confirms our backend can reach Supabase's OIDC discovery
+// endpoint. Unhealthy here means JWT validation will fail for all requests.
+app.MapHealthChecks("/health/auth", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("auth")
 }).AllowAnonymous();
 
 app.Run();
