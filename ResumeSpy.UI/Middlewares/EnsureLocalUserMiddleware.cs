@@ -70,6 +70,12 @@ namespace ResumeSpy.UI.Middlewares
                         {
                             logger.LogError(ex, "IdentityLinkingService failed for {Provider}/{ProviderUserId}", provider, providerUserId);
                             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                            context.Response.ContentType = "application/json";
+                            await context.Response.WriteAsJsonAsync(new
+                            {
+                                succeeded = false,
+                                errors = new[] { "Failed to resolve user identity." }
+                            });
                             return;
                         }
                     }
