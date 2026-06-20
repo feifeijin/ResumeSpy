@@ -127,8 +127,11 @@ builder.Services.Configure<SupabaseSettings>(builder.Configuration.GetSection("S
 builder.Services.Configure<AnonymousUserSettings>(builder.Configuration.GetSection("AnonymousUserSettings"));
 
 // Supabase JWT validation
-var supabaseUrl = builder.Configuration["Supabase:Url"]
-    ?? throw new InvalidOperationException("Supabase:Url is not configured.");
+var supabaseUrl = builder.Configuration["Supabase:Url"];
+if (string.IsNullOrWhiteSpace(supabaseUrl))
+    throw new InvalidOperationException(
+        "Supabase:Url is not configured. Set the SUPABASE_URL environment variable.");
+supabaseUrl = supabaseUrl.TrimEnd('/');
 
 // Use the JwtBearer Authority/OIDC discovery to fetch and cache JWKS lazily.
 // The handler refreshes signing keys automatically, so Supabase JWT key
