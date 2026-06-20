@@ -61,6 +61,15 @@ ResumeSpy uses three distinct environments for development and deployment:
 
 ## Required Secrets by Environment
 
+> **⚠️ Stale section.** The `Jwt:SigningKey` / `ExternalAuth:*` / refresh-token
+> settings below describe the old self-hosted JWT system, which has been replaced.
+> Authentication is now delegated to **Supabase** (JWTs are validated against the
+> Supabase OIDC/JWKS endpoint derived from `Supabase:Url` — see
+> `ResumeSpy.UI/Program.cs`). The backend does **not** issue or refresh tokens. The
+> values that actually matter per environment are `ConnectionStrings:PrimaryDbConnection`
+> (or the `DB_CONNECTION` env var), `Supabase:Url`, and `Supabase:ServiceRoleKey`.
+> The examples below are kept only for historical reference and should be rewritten.
+
 ### Local Development
 Configure via `appsettings.Development.json` or user secrets:
 
@@ -134,15 +143,34 @@ dotnet ef database update --project ResumeSpy.Infrastructure --startup-project R
 
 ### DEV Database
 - **Strategy**: Shared database for all DEV deployments
-- **Migrations**: Automatically applied during deployment
+- **Migrations**: Auto-applied on app startup (see [Migration application](#migration-application))
 - **Data**: Can be reset/seeded as needed
 - **Backups**: Daily automated backups
 
 ### PROD Database
 - **Strategy**: Dedicated production database
-- **Migrations**: Applied with blue-green deployment or maintenance window
+- **Migrations**: Auto-applied on app startup by default; can be disabled for a
+  blue-green / maintenance-window strategy (see [Migration application](#migration-application))
 - **Data**: Critical user data, must be protected
 - **Backups**: Hourly automated backups + point-in-time recovery
+
+### Migration application
+
+Pending EF Core migrations are applied **on app startup in all environments**,
+controlled by the `Database:MigrateOnStartup` config flag (default `true`,
+overridable via the `Database__MigrateOnStartup` env var). See
+`ResumeSpy.UI/Program.cs`. On boot the app logs either `Applying N pending EF
+migration(s): …` or `Database schema up to date; no pending migrations.`, so
+schema drift is visible in the Render logs.
+
+> **History:** before this was added, `Database.Migrate()` ran only when
+> `IsDevelopment()`, so the production schema silently fell behind the code and
+> login returned a 500 (`IdentityLinkingService` hitting the missing
+> `UserIdentities` table). Auto-migrate-on-startup closes that gap.
+
+To run migrations manually instead (e.g. set `Database:MigrateOnStartup=false` for
+a controlled prod rollout), apply them with `dotnet ef database update` before/with
+the deploy:
 
 ### Database Migration Strategy
 ```bash

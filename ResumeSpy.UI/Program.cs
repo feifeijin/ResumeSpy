@@ -312,11 +312,28 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+// Apply EF migrations on startup in ALL environments, gated by a config flag so a
+// blue-green / maintenance-window strategy can opt out later (set Database:MigrateOnStartup
+// = false). This previously ran only in Development, which left the production schema
+// permanently behind the code and caused login 500s when IdentityLinkingService hit the
+// missing UserIdentities table.
+if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
 {
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    dbContext.Database.Migrate();
+    var migrationLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var pending = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
+    if (pending.Count > 0)
+    {
+        migrationLogger.LogInformation(
+            "Applying {Count} pending EF migration(s): {Migrations}",
+            pending.Count, string.Join(", ", pending));
+        await dbContext.Database.MigrateAsync();
+    }
+    else
+    {
+        migrationLogger.LogInformation("Database schema up to date; no pending migrations.");
+    }
 }
 
 app.UseRequestResponseLogging();
