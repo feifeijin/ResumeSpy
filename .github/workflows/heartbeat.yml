@@ -26,10 +26,14 @@ jobs:
         id: ping_supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           CLEAN_URL="${SUPABASE_URL%/}"
-          echo "Pinging: ${CLEAN_URL}/auth/v1/health"
-          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" --max-time 15 "${CLEAN_URL}/auth/v1/health")
+          echo "Key prefix: ${SUPABASE_ANON_KEY:0:10}..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" --max-time 15 \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${CLEAN_URL}/auth/v1/health")
           STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
           BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
           echo "Response body: $BODY"
