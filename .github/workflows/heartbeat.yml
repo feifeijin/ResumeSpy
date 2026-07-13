@@ -27,8 +27,12 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         run: |
-          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 \
-            "${SUPABASE_URL}/auth/v1/health")
+          CLEAN_URL="${SUPABASE_URL%/}"
+          echo "Pinging: ${CLEAN_URL}/auth/v1/health"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" --max-time 15 "${CLEAN_URL}/auth/v1/health")
+          STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
+          echo "Response body: $BODY"
           echo "status=$STATUS" >> $GITHUB_OUTPUT
           if [[ "$STATUS" -ge 200 && "$STATUS" -lt 400 ]]; then
             echo "✅ Supabase ping OK (HTTP $STATUS)"
