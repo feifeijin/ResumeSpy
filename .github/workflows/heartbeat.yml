@@ -1,0 +1,55 @@
+name: Heartbeat - Keep Supabase Active
+
+on:
+  schedule:
+    - cron: '0 9 * * 1,4'   # Monday and Thursday at 09:00 UTC
+  workflow_dispatch:          # allow manual trigger for testing
+
+jobs:
+  ping:
+    name: Ping Services
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping website (Vercel)
+        id: ping_website
+        run: |
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 "https://resumespy.feifeijin.com/")
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          if [[ "$STATUS" -ge 200 && "$STATUS" -lt 400 ]]; then
+            echo "✅ Website ping OK (HTTP $STATUS)"
+          else
+            echo "⚠️ Website returned HTTP $STATUS"
+          fi
+
+      - name: Ping Supabase REST API
+        id: ping_supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/")
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          if [[ "$STATUS" -ge 200 && "$STATUS" -lt 400 ]]; then
+            echo "✅ Supabase ping OK (HTTP $STATUS)"
+          else
+            echo "❌ Supabase returned HTTP $STATUS"
+            exit 1
+          fi
+
+      - name: Notify Telegram on failure
+        if: failure()
+        run: |
+          curl -fsS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"${{ secrets.TELEGRAM_CHAT_ID }}\",\"text\":\"❌ ResumeSpy heartbeat FAILED\\nWebsite: ${{ steps.ping_website.outputs.status }}\\nSupabase: ${{ steps.ping_supabase.outputs.status }}\\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+
+      - name: Notify Telegram on success
+        if: success()
+        run: |
+          curl -fsS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"${{ secrets.TELEGRAM_CHAT_ID }}\",\"text\":\"✅ Heartbeat OK — Supabase is alive\n$(date -u '+%Y-%m-%d %H:%M UTC')\"}"
