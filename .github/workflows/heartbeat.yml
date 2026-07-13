@@ -29,14 +29,10 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           CLEAN_URL="${SUPABASE_URL%/}"
-          echo "Key prefix: ${SUPABASE_ANON_KEY:0:10}..."
-          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" --max-time 15 \
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
             "${CLEAN_URL}/auth/v1/health")
-          STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
-          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
-          echo "Response body: $BODY"
           echo "status=$STATUS" >> $GITHUB_OUTPUT
           if [[ "$STATUS" -ge 200 && "$STATUS" -lt 400 ]]; then
             echo "✅ Supabase ping OK (HTTP $STATUS)"
