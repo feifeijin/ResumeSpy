@@ -22,16 +22,13 @@ jobs:
             echo "⚠️ Website returned HTTP $STATUS"
           fi
 
-      - name: Ping Supabase REST API
+      - name: Ping Supabase auth health
         id: ping_supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 \
-            -H "apikey: ${SUPABASE_ANON_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
-            "${SUPABASE_URL}/rest/v1/")
+            "${SUPABASE_URL}/auth/v1/health")
           echo "status=$STATUS" >> $GITHUB_OUTPUT
           if [[ "$STATUS" -ge 200 && "$STATUS" -lt 400 ]]; then
             echo "✅ Supabase ping OK (HTTP $STATUS)"

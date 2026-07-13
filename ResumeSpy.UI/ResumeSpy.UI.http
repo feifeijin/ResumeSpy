@@ -1,6 +1,0 @@
-@ResumeSpy.UI_HostAddress = http://localhost:7227
-
-GET {{ResumeSpy.UI_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
