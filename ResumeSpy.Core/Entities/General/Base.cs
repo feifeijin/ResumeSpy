@@ -1,0 +1,21 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ResumeSpy.Core.Entities.General
+{
+    //Base class for entities common properties
+    public class Base<T>
+    {
+        [Key]
+        public T Id { get; set; } = default!;
+
+        public DateTime? EntryDate { get; set; }
+
+        public DateTime? UpdateDate { get; set; }
+    }
+}

@@ -1,0 +1,10 @@
+namespace ResumeSpy.Infrastructure.Configuration
+{
+    public enum TranslatorType
+    {
+        Microsoft = 0,
+        DeepL = 1,
+        Libre = 2,
+        AI = 3
+    }
+}

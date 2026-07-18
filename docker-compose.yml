@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:15
+    container_name: resumespy-db
+    environment:
+      POSTGRES_USER: resumespy
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: resumespy
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  db-data:
