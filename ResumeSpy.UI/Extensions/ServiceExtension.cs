@@ -15,6 +15,7 @@ using ResumeSpy.Core.Services;
 using ResumeSpy.Infrastructure.Services.AI;
 using ResumeSpy.Infrastructure.Repositories;
 using ResumeSpy.Infrastructure.Services;
+using ResumeSpy.Infrastructure.Services.Exporters;
 using ResumeSpy.Infrastructure.Services.Translation;
 using ResumeSpy.UI.Filters;
 using ResumeSpy.UI.Services;
@@ -55,7 +56,8 @@ namespace ResumeSpy.UI.Extensions
             })
             .AddStandardResilienceHandler(AddStorageResilience);
             services.AddScoped<IAnonymousUserService, AnonymousUserService>();
-            services.AddScoped<IPdfExportService, PdfExportService>();
+            services.AddScoped<IResumeParser, ResumeParser>();
+            services.AddScoped<IResumeExporter<byte[]>, PdfExporter>();
             services.AddScoped<IResumeTailoringService, ResumeTailoringService>();
             services.AddScoped<IResumeImportService, ResumeImportService>();
             services.AddScoped<IResumeVersionService, ResumeVersionService>();

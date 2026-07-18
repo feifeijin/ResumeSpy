@@ -1,30 +1,27 @@
-using Markdig;
-using Markdig.Syntax;
-using Markdig.Syntax.Inlines;
 using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using ResumeSpy.Core.Entities.Export;
 using ResumeSpy.Core.Interfaces.IServices;
 using SixLabors.Fonts;
 using System.Reflection;
-using System.Text;
 
-namespace ResumeSpy.Infrastructure.Services
+namespace ResumeSpy.Infrastructure.Services.Exporters
 {
-    public class PdfExportService : IPdfExportService
+    public class PdfExporter : IResumeExporter<byte[]>
     {
         private static readonly object FontLock = new();
         private static string? _fontFamily;
 
-        static PdfExportService()
+        static PdfExporter()
         {
             QuestPDF.Settings.License = LicenseType.Community;
             QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
 
             // Register embedded CJK fonts so Chinese and Japanese glyphs always render
             // correctly regardless of which fonts are installed on the host OS.
-            var assembly = typeof(PdfExportService).Assembly;
+            var assembly = Assembly.GetExecutingAssembly();
             RegisterEmbeddedFont(assembly, "ResumeSpy.Infrastructure.Fonts.NotoSansSC-Regular.ttf");
             RegisterEmbeddedFont(assembly, "ResumeSpy.Infrastructure.Fonts.NotoSansJP-Regular.ttf");
         }
@@ -36,10 +33,8 @@ namespace ResumeSpy.Infrastructure.Services
             FontManager.RegisterFont(stream);
         }
 
-        public Task<byte[]> GeneratePdfAsync(string content, string title)
+        public Task<byte[]> ExportAsync(ResumeDocument resume)
         {
-            var pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
-            var document = Markdown.Parse(content ?? string.Empty, pipeline);
             var fontFamily = ResolveFontFamily();
 
             var pdfDocument = Document.Create(doc =>
@@ -57,15 +52,13 @@ namespace ResumeSpy.Infrastructure.Services
 
                     page.Content().Column(col =>
                     {
-                        foreach (var block in document)
-                        {
+                        foreach (var block in resume.Blocks)
                             RenderBlock(col, block);
-                        }
                     });
 
                     page.Footer().AlignRight().Text(t =>
                     {
-                        t.Span(title).FontSize(8).FontColor("#aaaaaa");
+                        t.Span(resume.Title).FontSize(8).FontColor("#aaaaaa");
                         t.Span(" — ").FontSize(8).FontColor("#aaaaaa");
                         t.CurrentPageNumber().FontSize(8).FontColor("#aaaaaa");
                     });
@@ -76,15 +69,14 @@ namespace ResumeSpy.Infrastructure.Services
             return Task.FromResult(bytes);
         }
 
-        private static void RenderBlock(ColumnDescriptor col, Block block)
+        private static void RenderBlock(ColumnDescriptor col, ResumeBlock block)
         {
             switch (block)
             {
-                case HeadingBlock heading:
-                    var headingText = GetInlineText(heading.Inline);
+                case ResumeHeadingBlock heading:
                     col.Item().PaddingTop(heading.Level == 1 ? 0 : 10).PaddingBottom(2).Text(t =>
                     {
-                        var span = t.Span(headingText);
+                        var span = t.Span(heading.Text);
                         switch (heading.Level)
                         {
                             case 1: span.FontSize(20).Bold().FontColor("#111111"); break;
@@ -97,65 +89,29 @@ namespace ResumeSpy.Infrastructure.Services
                             .LineColor(heading.Level == 1 ? "#333333" : "#cccccc");
                     break;
 
-                case ParagraphBlock para:
-                    var paraText = GetInlineText(para.Inline);
-                    if (!string.IsNullOrWhiteSpace(paraText))
-                        col.Item().PaddingVertical(2).Text(paraText).FontSize(10);
+                case ResumeParagraphBlock para:
+                    col.Item().PaddingVertical(2).Text(para.Text).FontSize(10);
                     break;
 
-                case ListBlock list:
+                case ResumeBulletListBlock list:
                     col.Item().PaddingTop(2).Column(listCol =>
                     {
-                        foreach (var item in list)
+                        foreach (var item in list.Items)
                         {
-                            if (item is ListItemBlock listItem)
+                            listCol.Item().PaddingBottom(1).Row(row =>
                             {
-                                foreach (var innerBlock in listItem)
-                                {
-                                    if (innerBlock is ParagraphBlock innerPara)
-                                    {
-                                        var itemText = GetInlineText(innerPara.Inline);
-                                        listCol.Item().PaddingBottom(1).Row(row =>
-                                        {
-                                            row.ConstantItem(14).PaddingTop(1).Text("•").FontSize(9).FontColor("#555555");
-                                            row.RelativeItem().Text(itemText).FontSize(10);
-                                        });
-                                    }
-                                }
-                            }
+                                row.ConstantItem(14).PaddingTop(1).Text("•").FontSize(9).FontColor("#555555");
+                                row.RelativeItem().Text(item).FontSize(10);
+                            });
                         }
                     });
                     col.Item().PaddingBottom(2);
                     break;
 
-                case ThematicBreakBlock:
+                case ResumeDividerBlock:
                     col.Item().PaddingVertical(6).LineHorizontal(0.5f).LineColor("#dddddd");
                     break;
-
-                case ContainerBlock container:
-                    foreach (var inner in container)
-                        RenderBlock(col, inner);
-                    break;
             }
-        }
-
-        private static string GetInlineText(ContainerInline? inline)
-        {
-            if (inline == null) return string.Empty;
-            var sb = new StringBuilder();
-            foreach (var item in inline)
-            {
-                sb.Append(item switch
-                {
-                    LiteralInline literal => literal.Content.ToString(),
-                    EmphasisInline emphasis => GetInlineText(emphasis),
-                    LinkInline link => GetInlineText(link),
-                    CodeInline code => code.Content,
-                    LineBreakInline => " ",
-                    _ => string.Empty
-                });
-            }
-            return sb.ToString();
         }
 
         private static string? ResolveFontFamily()
@@ -186,8 +142,7 @@ namespace ResumeSpy.Infrastructure.Services
 
                 // Fall back to the embedded Noto Sans SC font, which covers Simplified
                 // Chinese and, combined with the registered Noto Sans JP fallback font,
-                // also covers Japanese.  This guarantees CJK text is never garbled on
-                // servers where no CJK system font is installed.
+                // also covers Japanese.
                 _fontFamily = "Noto Sans SC";
                 return _fontFamily;
             }

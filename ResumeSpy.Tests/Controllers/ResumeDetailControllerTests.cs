@@ -5,6 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ResumeSpy.Core.Entities.Business;
+using ResumeSpy.Core.Entities.Export;
 using ResumeSpy.Core.Exceptions;
 using ResumeSpy.Core.Interfaces.IServices;
 using ResumeSpy.UI.Controllers;
@@ -20,7 +21,8 @@ public class ResumeDetailControllerTests
     private readonly Mock<ITranslationService> _translationService = new();
     private readonly Mock<IResumeManagementService> _resumeManagementService = new();
     private readonly Mock<IResumeService> _resumeService = new();
-    private readonly Mock<IPdfExportService> _pdfExportService = new();
+    private readonly Mock<IResumeParser> _resumeParser = new();
+    private readonly Mock<IResumeExporter<byte[]>> _pdfExporter = new();
     private readonly Mock<IResumeTailoringService> _tailoringService = new();
 
     private ResumeDetailController CreateController(string? userId = null, Guid? anonymousUserId = null)
@@ -32,7 +34,8 @@ public class ResumeDetailControllerTests
             _translationService.Object,
             _resumeManagementService.Object,
             _resumeService.Object,
-            _pdfExportService.Object,
+            _resumeParser.Object,
+            _pdfExporter.Object,
             _tailoringService.Object);
 
         var context = new DefaultHttpContext();
