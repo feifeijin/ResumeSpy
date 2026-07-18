@@ -23,3 +23,6 @@ Scripts/LocalDev/
 # Local/Dev environment files
 .env.local
 .env.dev
+
+# Deprecated/removed code — kept locally for reference, not part of the public repo
+.deprecated/
