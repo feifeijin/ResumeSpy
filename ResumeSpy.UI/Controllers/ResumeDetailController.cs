@@ -22,7 +22,8 @@ namespace ResumeSpy.UI.Controllers
         private readonly ITranslationService _translationService;
         private readonly IResumeManagementService _resumeManagementService;
         private readonly IResumeService _resumeService;
-        private readonly IPdfExportService _pdfExportService;
+        private readonly IResumeParser _resumeParser;
+        private readonly IResumeExporter<byte[]> _pdfExporter;
         private readonly IResumeTailoringService _tailoringService;
 
         public ResumeDetailController(
@@ -32,7 +33,8 @@ namespace ResumeSpy.UI.Controllers
             ITranslationService translationService,
             IResumeManagementService resumeManagementService,
             IResumeService resumeService,
-            IPdfExportService pdfExportService,
+            IResumeParser resumeParser,
+            IResumeExporter<byte[]> pdfExporter,
             IResumeTailoringService tailoringService)
         {
             _logger = logger;
@@ -41,7 +43,8 @@ namespace ResumeSpy.UI.Controllers
             _translationService = translationService;
             _resumeManagementService = resumeManagementService;
             _resumeService = resumeService;
-            _pdfExportService = pdfExportService;
+            _resumeParser = resumeParser;
+            _pdfExporter = pdfExporter;
             _tailoringService = tailoringService;
         }
 
@@ -258,7 +261,8 @@ namespace ResumeSpy.UI.Controllers
             try
             {
                 var detailName = detail.Name ?? "Resume";
-                var pdfBytes = await _pdfExportService.GeneratePdfAsync(detail.Content, detailName);
+                var resumeDocument = _resumeParser.Parse(detail.Content, detailName);
+                var pdfBytes = await _pdfExporter.ExportAsync(resumeDocument);
                 var fileName = $"{detailName}_{DateTime.UtcNow:yyyyMMdd}.pdf";
                 return File(pdfBytes, "application/pdf", fileName);
             }
