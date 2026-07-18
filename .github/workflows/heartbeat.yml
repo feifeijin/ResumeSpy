@@ -13,8 +13,15 @@ jobs:
     steps:
       - name: Ping website (Vercel)
         id: ping_website
+        env:
+          WEBSITE_URL: ${{ vars.WEBSITE_URL }}
         run: |
-          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 "https://resumespy.feifeijin.com/")
+          if [[ -z "${WEBSITE_URL}" ]]; then
+            echo "::warning::WEBSITE_URL not configured, skipping website ping"
+            echo "status=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 "${WEBSITE_URL}")
           echo "status=$STATUS" >> $GITHUB_OUTPUT
           if [[ "$STATUS" -ge 200 && "$STATUS" -lt 400 ]]; then
             echo "✅ Website ping OK (HTTP $STATUS)"

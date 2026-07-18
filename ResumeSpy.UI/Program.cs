@@ -278,36 +278,21 @@ builder.Services.AddRateLimiter(options =>
 });
 
 // Add CORS services
+// Allowed origins are configured via Cors:AllowedOrigins in appsettings.json
+// (override with the Cors__AllowedOrigins__0, __1, … env vars in hosted environments).
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowSpecificOrigin",
-        builder => builder
-            .SetIsOriginAllowed(origin =>
-            {
-                if (string.IsNullOrWhiteSpace(origin) || !Uri.TryCreate(origin, UriKind.Absolute, out var uri))
-                    return false;
-
-                // Local frontend development
-                if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) && (uri.Port == 5173 || uri.Port == 7227))
-                    return true;
-
-                // Known production Vercel domain
-                if (uri.Host.Equals("resume-spy-web.vercel.app", StringComparison.OrdinalIgnoreCase))
-                    return true;
-
-                // Custom subdomain
-                if (uri.Host.Equals("resumespy.feifeijin.com", StringComparison.OrdinalIgnoreCase))
-                    return true;
-
-                // Vercel preview domains for this project/user namespace
-                if (uri.Host.EndsWith("-feifeijins-projects.vercel.app", StringComparison.OrdinalIgnoreCase))
-                    return true;
-
-                return false;
-            })
+        corsBuilder => corsBuilder
+            .WithOrigins(allowedOrigins)
+            .SetIsOriginAllowedToAllowWildcardSubdomains()
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials()); // Add this for better cross-origin support
+            .AllowCredentials());
 });
 
 var app = builder.Build();

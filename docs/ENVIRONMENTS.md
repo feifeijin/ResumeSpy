@@ -207,25 +207,14 @@ CORS must be configured per environment to allow frontend access.
 }
 ```
 
-### DEV
-```json
-{
-  "AllowedOrigins": [
-    "https://dev.resumespy.com",
-    "https://resumespy-dev.vercel.app"
-  ]
-}
+### DEV and PROD
+Inject origins via environment variables on your hosting provider:
+```
+Cors__AllowedOrigins__0=https://your-frontend.vercel.app
+Cors__AllowedOrigins__1=https://your-custom-domain.com
 ```
 
-### PROD
-```json
-{
-  "AllowedOrigins": [
-    "https://resumespy.com",
-    "https://www.resumespy.com"
-  ]
-}
-```
+Local development origins (`http://localhost:5173`, `http://localhost:3000`) are included in `appsettings.json` and always allowed.
 
 **Security Note**: Never use `*` (wildcard) in production CORS configuration.
 
@@ -234,16 +223,14 @@ CORS must be configured per environment to allow frontend access.
 ### Google OAuth Setup
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create separate OAuth apps for DEV and PROD
-3. Configure authorized redirect URIs:
-   - **DEV**: `https://dev.resumespy.com/auth/google/callback`
-   - **PROD**: `https://resumespy.com/auth/google/callback`
+3. Configure authorized redirect URIs to your Supabase project's OAuth callback:
+   `https://<your-supabase-project>.supabase.co/auth/v1/callback`
 
 ### GitHub OAuth Setup
 1. Go to GitHub Settings → Developer settings → OAuth Apps
 2. Create separate OAuth apps for DEV and PROD
-3. Configure callback URLs:
-   - **DEV**: `https://dev.resumespy.com/auth/github/callback`
-   - **PROD**: `https://resumespy.com/auth/github/callback`
+3. Configure callback URL to your Supabase project's OAuth callback:
+   `https://<your-supabase-project>.supabase.co/auth/v1/callback`
 
 **Frontend Integration**: Frontend is responsible for:
 - Initiating OAuth flow
@@ -360,12 +347,12 @@ Use these endpoints to verify environment status:
 ```bash
 # Liveness — process is up (no dependency checks). Wire your uptime
 # monitor (UptimeRobot, BetterStack, etc.) to this endpoint.
-curl https://api.resumespy.com/health
+curl https://<your-api-host>/health
 
 # Readiness — runs a real query against PostgreSQL. Returns 503 when
 # the DB is unreachable so monitors can distinguish a process that is
 # alive from one that cannot serve requests.
-curl https://api.resumespy.com/health/db
+curl https://<your-api-host>/health/db
 ```
 
 > Auth-provider health is delegated to the JWT bearer middleware, which
@@ -412,16 +399,7 @@ unset the OpenAI provider throws on first use, which surfaces in logs as
 serve, but once its free quota is hit the orchestrator returns "all
 providers failed" with no AI fallback.
 
-**DEV Environment**:
-```bash
-# View recent logs (example with Azure)
-az webapp log tail --name resumespy-dev --resource-group resumespy
-
-# Download logs
-az webapp log download --name resumespy-dev --resource-group resumespy
-```
-
-**PROD Environment**:
+**DEV/PROD Environment**:
 - Sentry receives exceptions and is the primary error-tracking surface
 - Use centralized logging (Application Insights, CloudWatch, etc.) for request logs
 - Set up Sentry alert rules for error-rate spikes and new issue types
@@ -430,14 +408,12 @@ az webapp log download --name resumespy-dev --resource-group resumespy
 
 ## Next Steps
 
-1. **Implement Real Deployment**: See [DEPLOYMENT.md](./DEPLOYMENT.md)
-2. **Set Up Monitoring**: Configure Application Insights or CloudWatch
-3. **Database Migrations**: Automate migration deployment
-4. **Rollback Strategy**: Implement automated rollback on failure
-5. **Performance Testing**: Load test DEV before PROD deployment
+1. **Set Up Monitoring**: Configure Sentry alerts and an uptime monitor (UptimeRobot, BetterStack)
+2. **Database Migrations**: Review auto-migration behaviour before major schema changes
+3. **Rollback Strategy**: Test rollback by redeploying a previous Render deploy
+4. **Performance Testing**: Load test DEV before PROD deployment
 
 ## Related Documentation
 
-- [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment implementation guide
-- [CONTRIBUTING.md](./CONTRIBUTING.md) - Contributing guidelines
+- [CONTRIBUTING.md](../CONTRIBUTING.md) - Contributing guidelines
 - [README.md](../README.md) - Project overview and getting started
