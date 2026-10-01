@@ -2,8 +2,11 @@ name: Heartbeat - Keep Supabase Active
 
 on:
   schedule:
-    - cron: '0 9 * * 1,4'   # Monday and Thursday at 09:00 UTC
-  workflow_dispatch:          # allow manual trigger for testing
+    - cron: '0 9 * * *'      # Daily at 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   ping:
@@ -11,46 +14,76 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Ping website (Vercel)
         id: ping_website
         run: |
-          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 "https://resumespy.feifeijin.com/")
-          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          START=$(date +%s%3N)
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 \
+            "https://resumespy.feifeijin.com/")
+          ELAPSED=$(( $(date +%s%3N) - START ))
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "elapsed=${ELAPSED}ms" >> "$GITHUB_OUTPUT"
           if [[ "$STATUS" -ge 200 && "$STATUS" -lt 400 ]]; then
-            echo "✅ Website ping OK (HTTP $STATUS)"
+            echo "✅ Website OK | HTTP $STATUS | ${ELAPSED}ms"
           else
-            echo "⚠️ Website returned HTTP $STATUS"
+            echo "⚠️ Website returned HTTP $STATUS | ${ELAPSED}ms"
           fi
 
-      - name: Ping Supabase auth health
+      - name: Ping Supabase PostgREST (database heartbeat)
         id: ping_supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           CLEAN_URL="${SUPABASE_URL%/}"
-          STATUS=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 \
+          START=$(date +%s%3N)
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 15 \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
-            "${CLEAN_URL}/auth/v1/health")
-          echo "status=$STATUS" >> $GITHUB_OUTPUT
+            "${CLEAN_URL}/rest/v1/")
+          ELAPSED=$(( $(date +%s%3N) - START ))
+          STATUS=$(printf '%s' "$RESPONSE" | tail -n1)
+          BODY_PREVIEW=$(printf '%s' "$RESPONSE" | head -c 150)
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "elapsed=${ELAPSED}ms" >> "$GITHUB_OUTPUT"
           if [[ "$STATUS" -ge 200 && "$STATUS" -lt 400 ]]; then
-            echo "✅ Supabase ping OK (HTTP $STATUS)"
+            echo "✅ Supabase heartbeat OK | HTTP $STATUS | ${ELAPSED}ms"
           else
-            echo "❌ Supabase returned HTTP $STATUS"
+            echo "❌ Supabase heartbeat FAILED | HTTP $STATUS | ${ELAPSED}ms"
+            echo "Response preview: ${BODY_PREVIEW}"
             exit 1
           fi
 
+      - name: Commit keep-alive timestamp
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          printf '%s\n' "$(date -u '+%Y-%m-%d %H:%M UTC')" > .github/keep-alive
+          git add .github/keep-alive
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: heartbeat keep-alive $(date -u '+%Y-%m-%d')"
+          git push || echo "⚠️ Push skipped (possibly concurrent run)"
+
       - name: Notify Telegram on failure
         if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          curl -fsS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\"chat_id\":\"${{ secrets.TELEGRAM_CHAT_ID }}\",\"text\":\"❌ ResumeSpy heartbeat FAILED\\nWebsite: ${{ steps.ping_website.outputs.status }}\\nSupabase: ${{ steps.ping_supabase.outputs.status }}\\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+            -d "{\"chat_id\":\"${TELEGRAM_CHAT_ID}\",\"text\":\"❌ ResumeSpy heartbeat FAILED\nWebsite: HTTP ${{ steps.ping_website.outputs.status }}\nSupabase: HTTP ${{ steps.ping_supabase.outputs.status }}\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
 
       - name: Notify Telegram on success
         if: success()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          curl -fsS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\"chat_id\":\"${{ secrets.TELEGRAM_CHAT_ID }}\",\"text\":\"✅ Heartbeat OK — Supabase is alive\n$(date -u '+%Y-%m-%d %H:%M UTC')\"}"
+            -d "{\"chat_id\":\"${TELEGRAM_CHAT_ID}\",\"text\":\"✅ Heartbeat OK\nSupabase: HTTP ${{ steps.ping_supabase.outputs.status }} | ${{ steps.ping_supabase.outputs.elapsed }}\nWebsite: HTTP ${{ steps.ping_website.outputs.status }} | ${{ steps.ping_website.outputs.elapsed }}\n$(date -u '+%Y-%m-%d %H:%M UTC')\"}"
