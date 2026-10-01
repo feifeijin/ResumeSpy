@@ -36,14 +36,14 @@ jobs:
         id: ping_supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           CLEAN_URL="${SUPABASE_URL%/}"
           START=$(date +%s%3N)
           RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 15 \
-            -H "apikey: ${SUPABASE_ANON_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
-            "${CLEAN_URL}/rest/v1/")
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            "${CLEAN_URL}/rest/v1/Resumes?limit=1")
           ELAPSED=$(( $(date +%s%3N) - START ))
           STATUS=$(printf '%s' "$RESPONSE" | tail -n1)
           BODY_PREVIEW=$(printf '%s' "$RESPONSE" | head -c 150)
